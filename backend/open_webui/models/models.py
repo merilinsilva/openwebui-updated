@@ -35,7 +35,18 @@ class ModelMeta(BaseModel):
     """Metadata for a workspace model entry (profile, description, tags, capabilities)."""
 
     profile_image_url: str | None = None
+
     description: str | None = Field(default=None, description='User-facing description of the model.')
+    """
+        User-facing description of the model.
+    """
+
+    greeting: Optional[str] = None
+    """
+        Message automatically shown to the user when this model is selected,
+        before any user input. Leave None to require the user to start the conversation.
+    """
+
     capabilities: dict | None = None
 
     model_config = ConfigDict(extra='allow')

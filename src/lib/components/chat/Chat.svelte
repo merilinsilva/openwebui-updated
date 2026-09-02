@@ -511,6 +511,46 @@
 		} finally {
 			settingDefaults = false;
 		}
+
+		injectGreeting();
+	};
+
+	const injectGreeting = () => {
+		if (chatIdProp) return;
+		if (selectedModels.length !== 1 || !selectedModels[0]) return;
+
+		const hasRealMessages = Object.values(history.messages).some((m: any) => !m.greeting);
+		if (hasRealMessages) return;
+
+		const model = $models.find((m) => m.id === selectedModels[0]);
+		const greetingText = model?.info?.meta?.greeting;
+
+		if (greetingText) {
+			const greetingId = uuidv4();
+			history = {
+				messages: {
+					[greetingId]: {
+						id: greetingId,
+						parentId: null,
+						childrenIds: [],
+						role: 'assistant',
+						content: greetingText,
+						done: true,
+						greeting: true,
+						model: model.id,
+						modelName: model.name ?? model.id,
+						modelIdx: 0,
+						timestamp: Math.floor(Date.now() / 1000)
+					}
+				},
+				currentId: greetingId
+			};
+		} else {
+			const hasGreeting = Object.values(history.messages).some((m: any) => m.greeting);
+			if (hasGreeting) {
+				history = { messages: {}, currentId: null };
+			}
+		}
 	};
 
 	const showMessage = async (message, scroll = true, save = true) => {
@@ -1580,6 +1620,8 @@
 			$models.map((m) => m.id).includes(modelId) ? modelId : ''
 		);
 
+		injectGreeting();
+
 		const chatInput = document.getElementById('chat-input');
 		setTimeout(() => chatInput?.focus(), 0);
 	};
@@ -1884,7 +1926,7 @@
 				scrollToBottom();
 			}
 
-			if (messages.length === 0) {
+			if (!$chatId) {
 				await initChatHandler(history);
 			} else {
 				await saveChatHandler($chatId, history);
@@ -1948,7 +1990,7 @@
 			scrollToBottom();
 		}
 
-		if (messages.length === 0) {
+		if (!$chatId) {
 			await initChatHandler(history);
 		} else {
 			await saveChatHandler($chatId, history);
@@ -2586,13 +2628,23 @@
 
 				id: responseMessageId,
 				...(messageIdsList ? { message_ids: messageIdsList } : {}),
-				parent_id: userMessage?.parentId ?? null,
+				parent_id: (() => {
+					const rawParent = userMessage?.parentId ?? null;
+					// If the immediate parent is a greeting message, treat this as a
+					// root message so the backend creates a new chat correctly.
+					if (rawParent && _history.messages[rawParent]?.greeting) return null;
+					return rawParent;
+				})(),
 				user_message: userMessage,
 				...(regenerationPrompt ? { regeneration_prompt: regenerationPrompt } : {}),
 				...(continueResponse ? { assistant_message_id: responseMessageId } : {}),
 
 				background_tasks: {
-					...(!$temporaryChatEnabled && !_chatId && (userMessage?.parentId ?? null) === null
+					...(!$temporaryChatEnabled && !_chatId && (() => {
+						const rawParent = userMessage?.parentId ?? null;
+						if (rawParent && _history.messages[rawParent]?.greeting) return true;
+						return rawParent === null;
+					})()
 						? {
 								title_generation: $settings?.title?.auto ?? true,
 								tags_generation: $settings?.autoTags ?? true
