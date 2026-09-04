@@ -3645,7 +3645,9 @@
 				...(continueResponse ? { assistant_message_id: responseMessageId } : {}),
 
 				background_tasks: {
-					...(!$temporaryChatEnabled && !_chatId && (() => {
+					...(!$temporaryChatEnabled &&
+					!_chatId &&
+					(() => {
 						const rawParent = userMessage?.parentId ?? null;
 						if (rawParent && _history.messages[rawParent]?.greeting) return true;
 						return rawParent === null;

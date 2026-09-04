@@ -790,77 +790,78 @@
 								{$i18n.t('Model Params')}
 							</div>
 
-						<div class="mt-2">
-							<div class="my-1">
-								<div class=" text-xs font-medium mb-2">{$i18n.t('System Prompt')}</div>
-								<div>
-									<Textarea
-										className=" text-sm w-full bg-transparent outline-hidden resize-none overflow-y-hidden "
-										placeholder={$i18n.t(
-											'Write your model system prompt content here\ne.g.) You are Mario from Super Mario Bros, acting as an assistant.'
-										)}
-										rows={4}
-										bind:value={system}
-									/>
+							<div class="mt-2">
+								<div class="my-1">
+									<div class=" text-xs font-medium mb-2">{$i18n.t('System Prompt')}</div>
+									<div>
+										<Textarea
+											className=" text-sm w-full bg-transparent outline-hidden resize-none overflow-y-hidden "
+											placeholder={$i18n.t(
+												'Write your model system prompt content here\ne.g.) You are Mario from Super Mario Bros, acting as an assistant.'
+											)}
+											rows={4}
+											bind:value={system}
+										/>
+									</div>
 								</div>
-							</div>
 
-							<div class="my-1">
-								<div class=" text-xs font-medium mb-2">{$i18n.t('Greeting Message')}</div>
-								<div>
-									<Textarea
-										className=" text-sm w-full bg-transparent outline-hidden resize-none overflow-y-hidden "
-										placeholder={$i18n.t(
-											'Enter a message to display automatically when this model is selected (leave empty to require users to start the conversation)'
-										)}
-										rows={2}
-										bind:value={greeting}
-									/>
+								<div class="my-1">
+									<div class=" text-xs font-medium mb-2">{$i18n.t('Greeting Message')}</div>
+									<div>
+										<Textarea
+											className=" text-sm w-full bg-transparent outline-hidden resize-none overflow-y-hidden "
+											placeholder={$i18n.t(
+												'Enter a message to display automatically when this model is selected (leave empty to require users to start the conversation)'
+											)}
+											rows={2}
+											bind:value={greeting}
+										/>
+									</div>
 								</div>
-							</div>
 
-											{#if chatVariablesPreview.fields.length > 0}
-												<div class="mb-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
-													{$i18n.t('Chat Variables')}
-												</div>
-												<div class="flex flex-wrap gap-x-3 gap-y-1.5 text-xs">
-													{#each chatVariablesPreview.fields as field}
-														<div class="flex items-center gap-1 text-gray-600 dark:text-gray-300">
-															<span class="font-medium">{field.key}</span>
-															<span class="text-gray-400 dark:text-gray-600">{field.type}</span>
-															{#if field.required}
-																<span class="text-amber-600 dark:text-amber-400">required</span>
-															{/if}
-														</div>
-													{/each}
-												</div>
-											{/if}
+								{#if chatVariablesPreview.fields.length > 0 || chatVariablesPreview.userFields.length > 0 || chatVariablesPreview.warnings.length > 0}
+									<div class="mt-2">
+										{#if chatVariablesPreview.fields.length > 0}
+											<div class="mb-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
+												{$i18n.t('Chat Variables')}
+											</div>
+											<div class="flex flex-wrap gap-x-3 gap-y-1.5 text-xs">
+												{#each chatVariablesPreview.fields as field}
+													<div class="flex items-center gap-1 text-gray-600 dark:text-gray-300">
+														<span class="font-medium">{field.key}</span>
+														<span class="text-gray-400 dark:text-gray-600">{field.type}</span>
+														{#if field.required}
+															<span class="text-amber-600 dark:text-amber-400">required</span>
+														{/if}
+													</div>
+												{/each}
+											</div>
+										{/if}
 
-											{#if chatVariablesPreview.userFields.length > 0}
-												<div class="mb-1 mt-2 text-[0.6875rem] text-gray-400 dark:text-gray-600">
-													{$i18n.t('User Variables')}
-												</div>
-												<div class="flex flex-wrap gap-x-3 gap-y-1.5 text-xs">
-													{#each chatVariablesPreview.userFields as field}
-														<div class="flex items-center gap-1 text-gray-600 dark:text-gray-300">
-															<span class="font-medium">{field.key}</span>
-														</div>
-													{/each}
-												</div>
-											{/if}
+										{#if chatVariablesPreview.userFields.length > 0}
+											<div class="mb-1 mt-2 text-[0.6875rem] text-gray-400 dark:text-gray-600">
+												{$i18n.t('User Variables')}
+											</div>
+											<div class="flex flex-wrap gap-x-3 gap-y-1.5 text-xs">
+												{#each chatVariablesPreview.userFields as field}
+													<div class="flex items-center gap-1 text-gray-600 dark:text-gray-300">
+														<span class="font-medium">{field.key}</span>
+													</div>
+												{/each}
+											</div>
+										{/if}
 
-											{#if chatVariablesPreview.warnings.length > 0}
-												<div
-													class="mt-2 flex flex-col gap-1 text-xs text-amber-600 dark:text-amber-400"
-												>
-													{#each chatVariablesPreview.warnings as warning}
-														<div>{warning}</div>
-													{/each}
-												</div>
-											{/if}
-										</div>
-									{/if}
-								</div>
+										{#if chatVariablesPreview.warnings.length > 0}
+											<div
+												class="mt-2 flex flex-col gap-1 text-xs text-amber-600 dark:text-amber-400"
+											>
+												{#each chatVariablesPreview.warnings as warning}
+													<div>{warning}</div>
+												{/each}
+											</div>
+										{/if}
+									</div>
+								{/if}
 
 								<div class="flex h-7 w-full justify-between">
 									<div class="self-center text-xs text-gray-600 dark:text-gray-400">
