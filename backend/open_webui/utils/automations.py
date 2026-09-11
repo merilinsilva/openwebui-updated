@@ -99,9 +99,14 @@ def _parse_rule(s: str, now: Optional[datetime] = None):
     }.get(rule._freq)
 
     if step is None:
-        if not rule._dtstart.tzinfo:
+        if has_dtstart:
             return parsed
-        return rrulestr(stripped, dtstart=start, ignoretz=True)
+        # No DTSTART given: anchor to the caller-resolved (timezone-correct)
+        # `now` instead of letting dateutil default dtstart to the raw
+        # server clock — otherwise next_run_ns() later relabels that
+        # server-clock value with the user's tzinfo, silently shifting
+        # the schedule by the zone's UTC offset on every reschedule.
+        return rrulestr(stripped, dtstart=anchor, ignoretz=True)
 
     if rule._interval < 1:
         raise ValueError('RRULE INTERVAL must be a positive integer')
