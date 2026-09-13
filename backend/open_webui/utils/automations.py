@@ -65,7 +65,7 @@ def _resolve_tz(tz: str = None) -> Optional[ZoneInfo]:
         return None
 
 
-def _parse_rule(s: str):
+def _parse_rule(s: str, now: Optional[datetime] = None):
     """Parse RRULE with clock-aligned DTSTART for sub-daily frequencies.
 
     MINUTELY/HOURLY rules use a fixed epoch DTSTART (2000-01-01 00:00)
@@ -78,7 +78,14 @@ def _parse_rule(s: str):
     if freq in ('MINUTELY', 'HOURLY'):
         epoch = datetime(2000, 1, 1, 0, 0, 0)
         return rrulestr(s, dtstart=epoch, ignoretz=True)
-    return rrulestr(s, ignoretz=True)
+    if 'DTSTART' in s.upper():
+        return rrulestr(s, ignoretz=True)
+    # No DTSTART given: anchor to the caller-resolved (timezone-correct)
+    # `now` instead of letting dateutil default dtstart to the raw
+    # server clock — otherwise next_run_ns() later relabels that
+    # server-clock value with the user's tzinfo, silently shifting
+    # the schedule by the zone's UTC offset on every reschedule.
+    return rrulestr(s, dtstart=now or datetime.now(), ignoretz=True)
 
 
 def validate_rrule(s: str, tz: str = None) -> None:
@@ -88,12 +95,12 @@ def validate_rrule(s: str, tz: str = None) -> None:
     clock so that near-future schedules are not incorrectly rejected
     on servers whose system clock is ahead (e.g. UTC vs US timezones).
     """
-    try:
-        rule = _parse_rule(s)
-    except Exception as e:
-        raise ValueError(ERROR_MESSAGES.AUTOMATION_INVALID_RRULE(e))
     zi = _resolve_tz(tz)
     now = datetime.now(zi).replace(tzinfo=None) if zi else datetime.now()
+    try:
+        rule = _parse_rule(s, now)
+    except Exception as e:
+        raise ValueError(ERROR_MESSAGES.AUTOMATION_INVALID_RRULE(e))
     if rule.after(now) is None:
         raise ValueError(ERROR_MESSAGES.AUTOMATION_NO_FUTURE_RUNS)
 
@@ -102,7 +109,8 @@ def next_run_ns(s: str, tz: str = None) -> Optional[int]:
     """Next occurrence as epoch nanoseconds, respecting user timezone."""
     zi = _resolve_tz(tz)
     now = datetime.now(zi) if zi else datetime.now()
-    dt = _parse_rule(s).after(now.replace(tzinfo=None))
+    now_naive = now.replace(tzinfo=None)
+    dt = _parse_rule(s, now_naive).after(now_naive)
     if dt is None:
         return None
     if zi:
@@ -117,9 +125,9 @@ def next_n_runs_ns(s: str, n: int = 5, tz: str = None) -> list[int]:
     preview matches the user's local clock (same as next_run_ns).
     """
     zi = _resolve_tz(tz)
-    rule = _parse_rule(s)
     result = []
     now = datetime.now(zi).replace(tzinfo=None) if zi else datetime.now()
+    rule = _parse_rule(s, now)
     dt = now
     for _ in range(n):
         dt = rule.after(dt)
