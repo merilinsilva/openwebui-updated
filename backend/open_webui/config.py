@@ -2110,6 +2110,15 @@ except Exception as e:
 WEBUI_BANNERS = banners
 
 
+class AnnouncementModel(BaseModel):
+    enabled: bool = False
+    title: str | None = None
+    content: str = ''
+
+
+WEBUI_ANNOUNCEMENT = AnnouncementModel().model_dump()
+
+
 SHOW_ADMIN_DETAILS = os.getenv('SHOW_ADMIN_DETAILS', 'true').lower() == 'true'
 
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', None)
@@ -3028,6 +3037,7 @@ DEFAULT_CONFIG = {
     'ui.enable_message_rating': ENABLE_MESSAGE_RATING,
     'ui.enable_user_webhooks': ENABLE_USER_WEBHOOKS,
     'ui.banners': WEBUI_BANNERS,
+    'ui.announcement': WEBUI_ANNOUNCEMENT,
     'auth.admin.show': SHOW_ADMIN_DETAILS,
     'auth.admin.email': ADMIN_EMAIL,
     'task.model.default': TASK_MODEL,

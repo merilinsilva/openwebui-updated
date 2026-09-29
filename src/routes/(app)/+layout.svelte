@@ -11,9 +11,9 @@
 
 	import { getModels, getToolServersData, getVersionUpdates } from '$lib/apis';
 	import { getTools } from '$lib/apis/tools';
-	import { getBanners } from '$lib/apis/configs';
+	import { getAnnouncement, getBanners } from '$lib/apis/configs';
 	import { getTerminalServers } from '$lib/apis/terminal';
-	import { getUserSettings } from '$lib/apis/users';
+	import { getUserSettings, updateUserSettings } from '$lib/apis/users';
 	import { setTextScale } from '$lib/utils/text-scale';
 
 	import { WEBUI_VERSION, WEBUI_API_BASE_URL } from '$lib/constants';
@@ -45,6 +45,7 @@
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	import SettingsModal from '$lib/components/chat/SettingsModal.svelte';
 	import ChangelogModal from '$lib/components/ChangelogModal.svelte';
+	import AnnouncementModal from '$lib/components/layout/AnnouncementModal.svelte';
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
 	import UpdateInfoToast from '$lib/components/layout/UpdateInfoToast.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -57,6 +58,9 @@
 	let localDBChats = [];
 
 	let version;
+
+	let announcement = null;
+	let showAnnouncement = false;
 
 	const clearChatInputStorage = () => {
 		const chatInputKeys = Object.keys(localStorage).filter((key) => key.startsWith('chat-input'));
@@ -190,6 +194,35 @@
 		banners.set(bannersData);
 	};
 
+	// Fingerprint of the announcement text. Dismissal is stored against this,
+	// so editing the title or content makes it show again for everyone, while
+	// re-saving identical text does not.
+	const announcementKey = (a: { title?: string | null; content?: string }) => {
+		const text = `${(a?.title ?? '').length}:${a?.title ?? ''}:${a?.content ?? ''}`;
+		let hash = 5381;
+		for (let i = 0; i < text.length; i++) {
+			hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
+		}
+		return `${hash}`;
+	};
+
+	const setAnnouncement = async () => {
+		const data = await getAnnouncement(localStorage.token).catch(() => null);
+		if (!data?.enabled || !(data?.content ?? '').trim()) {
+			return;
+		}
+
+		if ($settings?.dismissedAnnouncement !== announcementKey(data)) {
+			announcement = data;
+			showAnnouncement = true;
+		}
+	};
+
+	const dismissAnnouncement = async () => {
+		settings.set({ ...$settings, dismissedAnnouncement: announcementKey(announcement) });
+		await updateUserSettings(localStorage.token, { ui: $settings });
+	};
+
 	const setTools = async () => {
 		const toolsData = await getTools(localStorage.token);
 		tools.set(toolsData);
@@ -216,6 +249,10 @@
 
 		// Tool servers can be slow or unreachable; they are not needed to initialize chat.
 		setToolServers().catch((e) => console.error('Failed to load tool servers:', e));
+
+		// Must run after the block above: it reads $settings to check whether this
+		// user already dismissed the current announcement text.
+		setAnnouncement().catch((e) => console.error('Failed to load announcement:', e));
 
 		// Helper function to check if the pressed keys match the shortcut definition
 		const isShortcutMatch = (event: KeyboardEvent, shortcut): boolean => {
@@ -381,6 +418,10 @@
 
 <SettingsModal bind:show={$showSettings} />
 <ChangelogModal bind:show={$showChangelog} />
+
+{#if announcement}
+	<AnnouncementModal bind:show={showAnnouncement} {announcement} on:acknowledge={dismissAnnouncement} />
+{/if}
 
 {#if version && compareVersion(version.latest, version.current) && ($settings?.showUpdateToast ?? true)}
 	<div class=" absolute bottom-8 right-8 z-50" in:fade={{ duration: 100 }}>

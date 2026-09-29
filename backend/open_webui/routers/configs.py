@@ -7,7 +7,7 @@ from typing import Optional
 import aiohttp
 from fastapi import APIRouter, Depends, HTTPException, Request
 from mcp.shared.auth import OAuthMetadata
-from open_webui.config import BannerModel
+from open_webui.config import AnnouncementModel, BannerModel
 from open_webui.env import AIOHTTP_CLIENT_SESSION_SSL, AIOHTTP_CLIENT_TIMEOUT
 from open_webui.events import EVENTS, publish_event
 from open_webui.models.config import Config
@@ -818,3 +818,26 @@ async def get_banners(
     user=Depends(get_verified_user),
 ):
     return await Config.get('ui.banners')
+
+
+############################
+# Announcement
+############################
+
+
+@router.post('/announcement', response_model=AnnouncementModel)
+async def set_announcement(
+    request: Request,
+    form_data: AnnouncementModel,
+    user=Depends(get_admin_user),
+):
+    await Config.upsert({'ui.announcement': form_data.model_dump()})
+    return await Config.get('ui.announcement')
+
+
+@router.get('/announcement', response_model=AnnouncementModel)
+async def get_announcement(
+    request: Request,
+    user=Depends(get_verified_user),
+):
+    return await Config.get('ui.announcement')
