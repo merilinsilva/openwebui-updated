@@ -98,6 +98,7 @@ fi
 
 PYTHON_CMD=$(command -v python3 || command -v python)
 UVICORN_WORKERS="${UVICORN_WORKERS:-1}"
+UVICORN_LOG_LEVEL="${UVICORN_LOG_LEVEL:-info}"
 
 if [[ "$#" -gt 0 ]]; then
   ARGS=("$@")
@@ -110,4 +111,5 @@ exec env WEBUI_SECRET_KEY="${WEBUI_SECRET_KEY:-}" \
     --host "$HOST" \
     --port "$PORT" \
     --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-*}" \
+    --log-level "$UVICORN_LOG_LEVEL" \
     "${ARGS[@]}"
