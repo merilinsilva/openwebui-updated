@@ -4,7 +4,7 @@
 
 	import { getBackendConfig, getVersionUpdates } from '$lib/apis';
 	import { getAdminConfig, updateAdminConfig } from '$lib/apis/auths';
-	import { getAnnouncement, getBanners, setAnnouncement, setBanners } from '$lib/apis/configs';
+	import { getBanners, setBanners } from '$lib/apis/configs';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { WEBUI_BUILD_HASH, WEBUI_VERSION } from '$lib/constants';
@@ -31,8 +31,6 @@
 
 	let banners: Banner[] = [];
 
-	let announcement = { enabled: false, title: '', content: '' };
-
 	const checkForVersionUpdates = async () => {
 		updateAvailable = null;
 		version = await getVersionUpdates(localStorage.token).catch((error) => {
@@ -56,7 +54,6 @@
 		const res = await updateAdminConfig(localStorage.token, adminConfig);
 
 		await updateBanners();
-		await setAnnouncement(localStorage.token, announcement);
 
 		await config.set(await getBackendConfig());
 
@@ -71,8 +68,6 @@
 		adminConfig = await getAdminConfig(localStorage.token);
 
 		banners = [...$_banners];
-
-		announcement = (await getAnnouncement(localStorage.token).catch(() => null)) ?? announcement;
 	});
 </script>
 
@@ -438,40 +433,6 @@
 						</div>
 
 						<Banners bind:banners />
-					</div>
-
-					<div class="mb-2.5">
-						<div class="flex w-full justify-between">
-							<div class=" self-center text-xs">
-								{$i18n.t('User Announcement')}
-							</div>
-
-							<Switch bind:state={announcement.enabled} />
-						</div>
-
-						{#if announcement.enabled}
-							<div class="mt-2 flex flex-col gap-1.5">
-								<input
-									class="w-full rounded-sm py-1.5 px-2 text-xs bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
-									type="text"
-									placeholder={$i18n.t('Title')}
-									bind:value={announcement.title}
-								/>
-
-								<Textarea
-									className="w-full rounded-sm py-1.5 px-2 text-xs bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden resize-none"
-									placeholder={$i18n.t('Content')}
-									rows={3}
-									bind:value={announcement.content}
-								/>
-
-								<div class="text-xs text-gray-400 dark:text-gray-500">
-									{$i18n.t(
-										'Shown once to every user. Editing the title or content shows it again to everyone.'
-									)}
-								</div>
-							</div>
-						{/if}
 					</div>
 				</div>
 			</div>
