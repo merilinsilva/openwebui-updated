@@ -76,7 +76,7 @@
 	}
 
 	let system = '';
-	let greeting = '';
+	let news = '';
 
 	let info = {
 		id: '',
@@ -360,11 +360,13 @@
 
 		info.params.system = system.trim() === '' ? null : system;
 
-		if (greeting.trim() !== '') {
-			info.meta.greeting = greeting.trim();
+		if (news.trim() !== '') {
+			info.meta.news = news.trim();
 		} else {
-			delete info.meta.greeting;
+			delete info.meta.news;
 		}
+		// Drop the retired greeting field so it doesn't linger in saved models.
+		delete info.meta.greeting;
 
 		info.params.stop = params.stop
 			? (typeof params.stop === 'string' ? params.stop.split(',') : params.stop).filter((s) =>
@@ -437,7 +439,8 @@
 			}
 
 			system = model?.params?.system ?? '';
-			greeting = model?.meta?.greeting ?? '';
+			// Prefill from the old greeting field so existing text carries over on next save.
+			news = model?.meta?.news ?? model?.meta?.greeting ?? '';
 
 			params = { ...params, ...model?.params };
 			params.stop = params?.stop
@@ -806,15 +809,15 @@
 								</div>
 
 								<div class="my-1">
-									<div class=" text-xs font-medium mb-2">{$i18n.t('Greeting Message')}</div>
+									<div class=" text-xs font-medium mb-2">{$i18n.t('Model News')}</div>
 									<div>
 										<Textarea
 											className=" text-sm w-full bg-transparent outline-hidden resize-none overflow-y-hidden "
 											placeholder={$i18n.t(
-												'Enter a message to display automatically when this model is selected (leave empty to require users to start the conversation)'
+												'Shown when users hover the icon next to the model name on a new chat (leave empty to hide the icon)'
 											)}
 											rows={2}
-											bind:value={greeting}
+											bind:value={news}
 										/>
 									</div>
 								</div>

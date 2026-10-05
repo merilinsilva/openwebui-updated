@@ -85,10 +85,10 @@ class ModelMeta(BaseModel):
         User-facing description of the model.
     """
 
-    greeting: Optional[str] = None
+    news: str | None = None
     """
-        Message automatically shown to the user when this model is selected,
-        before any user input. Leave None to require the user to start the conversation.
+        "Model News": shown as a hover tooltip on an icon next to the model name
+        on a new chat. Leave None to show no icon.
     """
 
     capabilities: dict | None = None

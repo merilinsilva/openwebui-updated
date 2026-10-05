@@ -123,7 +123,7 @@
 					}}
 				/>
 			{:else}
-				<div class="flex flex-row justify-center gap-2.5 @sm:gap-3 w-fit px-5 max-w-xl">
+				<div class="relative flex flex-row justify-center gap-2.5 @sm:gap-3 w-fit px-5 max-w-xl">
 					<div class="flex shrink-0 justify-center">
 						<div class="flex -space-x-4 mb-0.5" in:fade={{ duration: 100 }}>
 							{#each models as model, modelIdx}
@@ -178,6 +178,48 @@
 							{$i18n.t('Hello, {{name}}', { name: $user?.name })}
 						{/if}
 					</div>
+
+					<!-- Anchored to this row, not the name, because the name's line-clamp clips overflow. -->
+					{#if models[selectedModelIdx]?.name && (models[selectedModelIdx]?.info?.meta?.news ?? '').trim() && !prompt}
+						<!-- Long news would overflow the viewport: open below, cap the height and
+						     scroll; interactive so the pointer can move in to scroll. -->
+						<Tooltip
+							content={`<div class="max-h-[60vh] overflow-y-auto pr-1">${DOMPurify.sanitize(
+								marked.parse(
+									sanitizeResponseContent(
+										models[selectedModelIdx]?.info?.meta?.news ?? ''
+									).replaceAll('\n', '<br>')
+								)
+							)}</div>`}
+							placement="bottom"
+							theme="news"
+							interactive
+							tippyOptions={{ appendTo: () => document.body, maxWidth: 420 }}
+							className="absolute left-full bottom-[70%] -ml-6 z-10"
+						>
+							<div
+								class="relative w-40 rounded-[50%] border-2 border-gray-900 dark:border-gray-100 bg-white dark:bg-gray-900 px-5 py-5 text-sm leading-tight text-center text-gray-900 dark:text-gray-100 cursor-default select-none"
+								role="img"
+								aria-label={$i18n.t('Model News')}
+								in:fade={{ duration: 100 }}
+							>
+								{$i18n.t('Hover to learn about my capabilities!')}
+								<svg
+									class="absolute -bottom-[16px] left-[24%] w-6 h-5 text-gray-900 dark:text-gray-100"
+									viewBox="0 0 24 20"
+									aria-hidden="true"
+								>
+									<path
+										d="M7 0 L0 20 L19 1"
+										class="fill-white dark:fill-gray-900"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linejoin="round"
+									/>
+								</svg>
+							</div>
+						</Tooltip>
+					{/if}
 				</div>
 
 				<div class="flex mt-1 mb-2">

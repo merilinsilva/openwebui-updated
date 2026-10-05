@@ -379,6 +379,11 @@ input[type='number'] {
 	@apply rounded-lg bg-gray-950 text-xs border border-gray-900 shadow-xl;
 }
 
+/* Model News popup: follows the app's light/dark mode (dark side matches the 'dark' theme above). */
+.tippy-box[data-theme~='news'] {
+	@apply rounded-lg text-xs border shadow-xl bg-white text-gray-900 border-gray-200 dark:bg-gray-950 dark:text-gray-100 dark:border-gray-900;
+}
+
 .password {
 	-webkit-text-security: disc;
 }
