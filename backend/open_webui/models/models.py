@@ -87,8 +87,14 @@ class ModelMeta(BaseModel):
 
     news: str | None = None
     """
-        "Model News": shown as a hover tooltip on an icon next to the model name
-        on a new chat. Leave None to show no icon.
+        "Model Information": shown as a hover tooltip on the red badge below the chat
+        input on a new chat. Leave None to hide the badge.
+    """
+
+    task_prompt_ids: list[str] | None = None
+    """
+        Up to 4 prompt-library IDs shown, in order, as task cards on the new-chat
+        screen. When unset, the 4 most recently updated prompts are shown.
     """
 
     capabilities: dict | None = None

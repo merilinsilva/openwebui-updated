@@ -25,8 +25,19 @@
 		visiblePinnedModels,
 		selectedFolder,
 		WEBUI_NAME,
-		sidebarWidth
+		sidebarWidth,
+		showSettings,
+		howToUseContent,
+		showHowToUse
 	} from '$lib/stores';
+	import { getHowToUse } from '$lib/apis/configs';
+	import HowToUseModal from './HowToUseModal.svelte';
+	import QuestionMarkCircle from '../icons/QuestionMarkCircle.svelte';
+	import { getMemories } from '$lib/apis/memories';
+	import BookOpen from '../icons/BookOpen.svelte';
+	import Database from '../icons/Database.svelte';
+	import LightBulb from '../icons/LightBulb.svelte';
+	import UserGroup from '../icons/UserGroup.svelte';
 	import {
 		loadNextChatListPage,
 		refreshChatList,
@@ -162,14 +173,8 @@
 					($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true))
 				);
 			case 'workspace':
-				return (
-					$user?.role === 'admin' ||
-					$user?.permissions?.workspace?.models ||
-					$user?.permissions?.workspace?.knowledge ||
-					$user?.permissions?.workspace?.prompts ||
-					$user?.permissions?.workspace?.tools ||
-					$user?.permissions?.workspace?.skills
-				);
+				// Prompts & skills and Knowledge have their own entries; Workspace is for model builders.
+				return $user?.role === 'admin' || ($user?.permissions?.workspace?.models ?? false);
 			case 'automations':
 				return (
 					$config?.features?.enable_automations &&
@@ -652,6 +657,10 @@
 	});
 
 	onMount(async () => {
+		getHowToUse(localStorage.token)
+			.then((res) => howToUseContent.set(res))
+			.catch(() => {});
+
 		try {
 			const width = Number(localStorage.getItem('sidebarWidth'));
 			if (!Number.isNaN(width) && width >= MIN_WIDTH && width <= MAX_WIDTH) {
@@ -821,6 +830,73 @@
 		}
 	};
 
+	// Fixed library entries under Search (kept out of the user-sortable pinned list so
+	// they show even for users who already saved their own pinned-menu order).
+	$: canPrompts = $user?.role === 'admin' || ($user?.permissions?.workspace?.prompts ?? false);
+	$: canSkills = $user?.role === 'admin' || ($user?.permissions?.workspace?.skills ?? false);
+	$: canKnowledge = $user?.role === 'admin' || ($user?.permissions?.workspace?.knowledge ?? false);
+	// Same check SettingsModal uses for the Personalization (memory) tab.
+	$: canMemory =
+		($config?.features?.enable_memories ?? false) &&
+		($user?.role === 'admin' || ($user?.permissions?.features?.memories ?? true));
+
+	$: libraryItems = [
+		...(canPrompts || canSkills
+			? [
+					{
+						id: 'prompts-skills',
+						label: 'Prompts & skills',
+						href: canPrompts ? '/workspace/prompts' : '/workspace/skills',
+						prefixes: ['/workspace/prompts', '/workspace/skills']
+					}
+				]
+			: []),
+		...(canKnowledge
+			? [
+					{
+						id: 'knowledge',
+						label: 'Knowledge',
+						href: '/workspace/knowledge',
+						prefixes: ['/workspace/knowledge']
+					}
+				]
+			: []),
+		...(canMemory ? [{ id: 'memory', label: 'My memory', href: null, prefixes: [] }] : []),
+		{ id: 'shared', label: 'Shared with me', href: '/shared', prefixes: ['/shared'] }
+	];
+
+	const isLibraryItemActive = (item, pathname) =>
+		item.prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+
+	let memoryCount: number | null = null;
+	const refreshMemoryCount = async () => {
+		if (!canMemory) return;
+		const res = await getMemories(localStorage.token).catch(() => null);
+		memoryCount = Array.isArray(res) ? res.length : null;
+	};
+
+	// Load once, then refresh whenever the settings modal (where memories are managed) closes.
+	let memoryCountLoaded = false;
+	$: if (canMemory && !memoryCountLoaded) {
+		memoryCountLoaded = true;
+		refreshMemoryCount();
+	}
+	let settingsWasOpen = false;
+	$: {
+		const open = !!$showSettings;
+		if (settingsWasOpen && !open) refreshMemoryCount();
+		settingsWasOpen = open;
+	}
+
+	// The button only shows once an admin has written a guide.
+	$: hasHowToUse = (($howToUseContent?.content ?? '').trim() !== '');
+	$: howToUseTitle = ($howToUseContent?.title ?? '').trim() || $i18n.t('How to use CHOn');
+
+	const openHowToUse = () => {
+		showHowToUse.set(true);
+		closeMobileSidebar();
+	};
+
 	const itemClickHandler = async () => {
 		selectedChatId = null;
 		chatId.set('');
@@ -917,6 +993,8 @@
 			}}
 		></div>
 	{/if}
+
+	<HowToUseModal />
 
 	<SearchModal
 		bind:show={$showSearch}
@@ -1072,6 +1150,24 @@
 
 			<div>
 				<div>
+					{#if hasHowToUse}
+						<div class="flex justify-center items-center">
+							<Tooltip content={howToUseTitle} placement="right">
+								<button
+									type="button"
+									class="cursor-pointer flex size-8 items-center justify-center transition group"
+									aria-label={howToUseTitle}
+									on:click|stopPropagation={openHowToUse}
+								>
+									<div
+										class="self-center flex size-[calc(30px*var(--app-text-scale,1))] items-center justify-center rounded-lg transition group-hover:bg-gray-100 dark:group-hover:bg-gray-900"
+									>
+										<QuestionMarkCircle className="size-4" strokeWidth="1.5" />
+									</div>
+								</button>
+							</Tooltip>
+						</div>
+					{/if}
 					<div class=" flex justify-center items-center">
 						{#if $user !== undefined && $user !== null}
 							<UserMenu role={$user?.role} profile={$config?.features?.enable_user_status ?? true}>
@@ -1160,16 +1256,23 @@
 						/>
 					</a>
 
-					<a href="/" class="flex flex-1 px-0.5" on:click={newChatHandler}>
+					<a href="/" class="flex flex-1 min-w-0 items-center gap-2 px-0.5" on:click={newChatHandler}>
 						<!-- LICENSE covers this Open WebUI sidebar name.
 					Do not alter, remove, obscure, or replace it except as LICENSE permits:
 					https://docs.openwebui.com/license. -->
 						<div
 							id="sidebar-webui-name"
-							class=" self-center font-normal text-gray-700 dark:text-gray-200"
+							class=" self-center shrink-0 font-normal text-gray-700 dark:text-gray-200"
 						>
 							{$WEBUI_NAME}
 						</div>
+						<!-- Company logo added alongside (not instead of) the Open WebUI name above. -->
+						<img
+							src="/assets/weidmann-logo.png"
+							alt="Weidmann"
+							class="h-3 w-auto min-w-0 object-contain object-left"
+							draggable="false"
+						/>
 					</a>
 					<Tooltip
 						content={$showSidebar ? $i18n.t('Close Sidebar') : $i18n.t('Open Sidebar')}
@@ -1249,6 +1352,57 @@
 								<HotkeyHint name="search" className=" hover-reveal " />
 							</button>
 						</div>
+
+						{#each libraryItems as item (item.id)}
+							{@const active = isLibraryItemActive(item, $page.url.pathname)}
+							<div class="px-1 flex justify-center text-gray-700 dark:text-gray-300">
+								<svelte:element
+									this={item.href ? 'a' : 'button'}
+									id="sidebar-{item.id}-button"
+									class="grow flex items-center space-x-2 rounded-xl px-2 py-1.5 transition outline-none {active
+										? 'bg-black/[0.035] dark:bg-white/[0.045]'
+										: 'hover:bg-gray-100 dark:hover:bg-gray-900'}"
+									href={item.href ?? undefined}
+									type={item.href ? undefined : 'button'}
+									draggable="false"
+									aria-label={$i18n.t(item.label)}
+									on:click={() => {
+										if (item.id === 'memory') {
+											// Memories are managed in Settings > Personalization.
+											showSettings.set('personalization');
+											closeMobileSidebar();
+										} else {
+											itemClickHandler();
+										}
+									}}
+								>
+									<div class="self-center flex size-4 shrink-0 items-center justify-center">
+										{#if item.id === 'prompts-skills'}
+											<BookOpen className="size-4" strokeWidth="1.5" />
+										{:else if item.id === 'knowledge'}
+											<Database className="size-4" strokeWidth="1.5" />
+										{:else if item.id === 'memory'}
+											<LightBulb className="size-4" strokeWidth="1.5" />
+										{:else if item.id === 'shared'}
+											<UserGroup className="size-4" strokeWidth="1.5" />
+										{/if}
+									</div>
+
+									<div class="flex flex-1 self-center translate-y-[0.5px]">
+										<div class=" self-center text-[0.8125rem] leading-5">
+											{$i18n.t(item.label)}
+										</div>
+									</div>
+
+									{#if item.id === 'memory' && memoryCount !== null}
+										<span
+											class="rounded-full bg-gray-100 dark:bg-gray-850 px-1.5 text-[0.6875rem] text-gray-500 dark:text-gray-400"
+											>{memoryCount}</span
+										>
+									{/if}
+								</svelte:element>
+							</div>
+						{/each}
 
 						<div id="pinned-menu-items-list">
 							{#each pinnedItems as itemId (itemId)}
@@ -1705,6 +1859,23 @@
 						class=" sidebar-bg-gradient-to-t bg-linear-to-t from-gray-50 dark:from-gray-950 to-transparent from-50% pointer-events-none absolute inset-0 -z-10 -mt-6"
 					></div>
 					<div class="flex flex-col">
+						{#if hasHowToUse}
+							<div class="pb-1 mb-1 border-b border-gray-100 dark:border-gray-850/60">
+								<button
+									type="button"
+									id="sidebar-how-to-use-button"
+									class="w-full flex items-center space-x-2 rounded-xl px-2 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 transition outline-none"
+									on:click={openHowToUse}
+								>
+									<div class="self-center flex size-4 shrink-0 items-center justify-center">
+										<QuestionMarkCircle className="size-4" strokeWidth="1.5" />
+									</div>
+									<div class="flex-1 self-center text-left text-[0.8125rem] leading-5 truncate">
+										{howToUseTitle}
+									</div>
+								</button>
+							</div>
+						{/if}
 						{#if $user !== undefined && $user !== null}
 							<UserMenu
 								role={$user?.role}

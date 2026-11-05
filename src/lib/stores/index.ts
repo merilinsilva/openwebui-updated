@@ -134,6 +134,10 @@ export const showSearch = writable(false);
 export const showSettings: Writable<boolean | string | SettingsModalRequest> = writable(false);
 export const showChangelog = writable(false);
 
+// "How to use" guide configured in Admin Settings; null until loaded.
+export const howToUseContent: Writable<{ title: string; content: string } | null> = writable(null);
+export const showHowToUse = writable(false);
+
 export const showControls = writable(false);
 export const showEmbeds = writable(false);
 export const showOverview = writable(false);

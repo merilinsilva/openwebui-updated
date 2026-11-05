@@ -29,6 +29,7 @@
 	import DefaultFeatures from './DefaultFeatures.svelte';
 	import BuiltinTools from './BuiltinTools.svelte';
 	import PromptSuggestions from './PromptSuggestions.svelte';
+	import TaskPrompts from './TaskPrompts.svelte';
 	import TerminalSelector from './TerminalSelector.svelte';
 	import TTSVoiceInput from './TTSVoiceInput.svelte';
 	import AccessControlModal from '../common/AccessControlModal.svelte';
@@ -89,6 +90,7 @@
 			profile_image_url: `${WEBUI_BASE_URL}/static/favicon.png`,
 			description: '',
 			suggestion_prompts: null,
+			task_prompt_ids: [],
 			tags: []
 		},
 		params: {
@@ -367,6 +369,18 @@
 		}
 		// Drop the retired greeting field so it doesn't linger in saved models.
 		delete info.meta.greeting;
+
+		// New-chat task cards: up to 4 prompt-library IDs, in display order.
+		const taskPromptIds = [
+			...new Set((info.meta.task_prompt_ids ?? []).filter((id) => typeof id === 'string' && id))
+		].slice(0, 4);
+		if (taskPromptIds.length > 0) {
+			info.meta.task_prompt_ids = taskPromptIds;
+		} else {
+			delete info.meta.task_prompt_ids;
+		}
+		// Hand-written task cards were replaced by prompt-library picks.
+		delete info.meta.tasks;
 
 		info.params.stop = params.stop
 			? (typeof params.stop === 'string' ? params.stop.split(',') : params.stop).filter((s) =>
@@ -809,12 +823,12 @@
 								</div>
 
 								<div class="my-1">
-									<div class=" text-xs font-medium mb-2">{$i18n.t('Model News')}</div>
+									<div class=" text-xs font-medium mb-2">{$i18n.t('Model Information')}</div>
 									<div>
 										<Textarea
 											className=" text-sm w-full bg-transparent outline-hidden resize-none overflow-y-hidden "
 											placeholder={$i18n.t(
-												'Shown when users hover the icon next to the model name on a new chat (leave empty to hide the icon)'
+												'Shown when users hover the red "Model Information" badge below the chat input on a new chat (leave empty to hide the badge)'
 											)}
 											rows={2}
 											bind:value={news}
@@ -924,6 +938,16 @@
 							{#if info?.meta?.suggestion_prompts}
 								<PromptSuggestions bind:promptSuggestions={info.meta.suggestion_prompts} />
 							{/if}
+						</section>
+
+						<hr class=" border-gray-100/30 dark:border-gray-850/30 my-2" />
+
+						<section class="my-2.5">
+							<div class="self-center text-xs text-gray-400 dark:text-gray-600">
+								{$i18n.t('Tasks')}
+							</div>
+
+							<TaskPrompts bind:promptIds={info.meta.task_prompt_ids} />
 						</section>
 
 						<div class="my-3">

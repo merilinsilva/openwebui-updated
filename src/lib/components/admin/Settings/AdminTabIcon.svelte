@@ -13,6 +13,7 @@
 	import SoundHigh from '$lib/components/icons/SoundHigh.svelte';
 	import UserCircle from '$lib/components/icons/UserCircle.svelte';
 	import WrenchAlt from '$lib/components/icons/WrenchAlt.svelte';
+	import QuestionMarkCircle from '$lib/components/icons/QuestionMarkCircle.svelte';
 
 	export let id: string;
 	export let className = 'size-3.5';
@@ -79,6 +80,8 @@
 	<CodeBracket {className} {strokeWidth} />
 {:else if id === 'interface'}
 	<Computer {className} {strokeWidth} />
+{:else if id === 'how-to-use'}
+	<QuestionMarkCircle {className} {strokeWidth} />
 {:else if id === 'audio'}
 	<SoundHigh {className} {strokeWidth} />
 {:else if id === 'images'}

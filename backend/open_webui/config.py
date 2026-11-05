@@ -1739,6 +1739,13 @@ PENDING_USER_OVERLAY_TITLE = os.getenv('PENDING_USER_OVERLAY_TITLE', '')
 
 PENDING_USER_OVERLAY_CONTENT = os.getenv('PENDING_USER_OVERLAY_CONTENT', '')
 
+# "How to use" guide shown from the sidebar. content is sanitized HTML written in
+# Admin Settings > How to use; images are embedded as data URIs.
+HOW_TO_USE = {
+    'title': os.getenv('HOW_TO_USE_TITLE', 'How to use CHOn'),
+    'content': os.getenv('HOW_TO_USE_CONTENT', ''),
+}
+
 
 RESPONSE_WATERMARK = os.getenv('RESPONSE_WATERMARK', '')
 
@@ -3103,6 +3110,7 @@ DEFAULT_CONFIG = {
     'ui.default_group_id': DEFAULT_GROUP_ID,
     'ui.pending_user_overlay_title': PENDING_USER_OVERLAY_TITLE,
     'ui.pending_user_overlay_content': PENDING_USER_OVERLAY_CONTENT,
+    'ui.how_to_use': HOW_TO_USE,
     'ui.watermark': RESPONSE_WATERMARK,
     'user.permissions': USER_PERMISSIONS,
     'folders.enable': ENABLE_FOLDERS,

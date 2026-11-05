@@ -50,6 +50,7 @@
 	import AdminWebSearch from '$lib/components/admin/Settings/WebSearch.svelte';
 	import AdminCodeExecution from '$lib/components/admin/Settings/CodeExecution.svelte';
 	import AdminInterface from '$lib/components/admin/Settings/Interface.svelte';
+	import AdminHowToUse from '$lib/components/admin/Settings/HowToUse.svelte';
 	import AdminAudio from '$lib/components/admin/Settings/Audio.svelte';
 	import AdminImages from '$lib/components/admin/Settings/Images.svelte';
 	import AdminPipelines from '$lib/components/admin/Settings/Pipelines.svelte';
@@ -163,6 +164,7 @@
 		'admin:code-execution': 'Tools',
 		'admin:pipelines': 'Tools',
 		'admin:interface': 'Experience',
+		'admin:how-to-use': 'Experience',
 		'admin:audio': 'Experience',
 		'admin:images': 'Experience',
 		'admin:db': 'Data'
@@ -736,6 +738,11 @@
 			keywords: ['interface', 'ui', 'appearance', 'banners', 'tasks', 'prompt suggestions', 'tags']
 		},
 		{
+			id: 'admin:how-to-use',
+			title: 'How to use',
+			keywords: ['how to use', 'guide', 'help', 'onboarding', 'manual', 'instructions', 'documentation']
+		},
+		{
 			id: 'admin:audio',
 			title: 'Audio',
 			keywords: ['audio', 'voice', 'speech', 'tts', 'stt', 'whisper', 'deepgram', 'azure']
@@ -1291,6 +1298,12 @@
 				<AdminCodeExecution saveHandler={adminConfigSaveHandler} />
 			{:else if selectedTab === 'admin:interface'}
 				<AdminInterface
+					on:save={() => {
+						toast.success($i18n.t('Settings saved successfully!'));
+					}}
+				/>
+			{:else if selectedTab === 'admin:how-to-use'}
+				<AdminHowToUse
 					on:save={() => {
 						toast.success($i18n.t('Settings saved successfully!'));
 					}}

@@ -865,3 +865,41 @@ async def get_banners(
     user=Depends(get_verified_user),
 ):
     return await Config.get('ui.banners')
+
+
+############################
+# How to use guide
+############################
+
+
+class HowToUseModel(BaseModel):
+    title: str = ''
+    content: str = ''
+
+
+# Images are stored inline as data URIs, so allow a generous but bounded size.
+HOW_TO_USE_MAX_CONTENT_CHARS = 20 * 1024 * 1024
+
+
+@router.get('/how_to_use', response_model=HowToUseModel)
+async def get_how_to_use(
+    request: Request,
+    user=Depends(get_verified_user),
+):
+    value = await Config.get('ui.how_to_use') or {}
+    return HowToUseModel(title=value.get('title') or '', content=value.get('content') or '')
+
+
+@router.post('/how_to_use', response_model=HowToUseModel)
+async def set_how_to_use(
+    request: Request,
+    form_data: HowToUseModel,
+    user=Depends(get_admin_user),
+):
+    if len(form_data.content) > HOW_TO_USE_MAX_CONTENT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail='The guide is too large. Use fewer or smaller images.',
+        )
+    await Config.upsert({'ui.how_to_use': form_data.model_dump()})
+    return await get_how_to_use(request, user)

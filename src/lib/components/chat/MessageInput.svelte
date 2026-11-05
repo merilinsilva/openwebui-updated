@@ -89,7 +89,6 @@
 	import GlobeAlt from '../icons/GlobeAlt.svelte';
 	import Photo from '../icons/Photo.svelte';
 	import Wrench from '../icons/Wrench.svelte';
-	import Cube from '../icons/Cube.svelte';
 	import Sparkles from '../icons/Sparkles.svelte';
 	import Mic from '../icons/Mic.svelte';
 
@@ -675,6 +674,28 @@
 	let suggestions = null;
 
 	let showTools = false;
+
+	// Editor instance, used by the labelled toolbar buttons to open the "/" and "#" pickers.
+	let chatInputEditor = null;
+
+	const openCommandPicker = (char: string) => {
+		const editor = chatInputEditor;
+		if (!editor || editor.isDestroyed) return;
+		const { from } = editor.state.selection;
+		const before = editor.state.doc.textBetween(Math.max(0, from - 1), from, '\n', '\n');
+		// The pickers only open at the start of a word, so separate from the previous text.
+		editor
+			.chain()
+			.focus()
+			.insertContent(before && !/\s/.test(before) ? ` ${char}` : char)
+			.run();
+	};
+
+	// Mirrors the check Chat.svelte uses before sending memories with a request.
+	$: memoryOn =
+		($config?.features?.enable_memories ?? false) &&
+		($_user?.role === 'admin' || ($_user?.permissions?.features?.memories ?? true)) &&
+		($settings?.memory ?? $config?.features?.enable_memories ?? false);
 	let showSkills = false;
 
 	let loaded = false;
@@ -797,6 +818,17 @@
 
 	let showToolsButton = false;
 	$: showToolsButton = ($tools ?? []).length > 0 || ($toolServers ?? []).length > 0;
+
+	$: showIntegrationsMenu =
+		showWebSearchButton ||
+		showImageGenerationButton ||
+		showCodeInterpreterButton ||
+		showToolsButton ||
+		showSkillsButton ||
+		(toggleFilters && toggleFilters.length > 0);
+
+	const labelledButtonClass =
+		'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-800 rounded-full h-[1.875rem] px-2 @md:px-2.5 flex items-center gap-1 text-xs whitespace-nowrap outline-hidden focus:outline-hidden shrink-0 transition';
 
 	let showSkillsButton = false;
 	$: showSkillsButton = ($skills ?? []).some((skill) => skill.is_active);
@@ -1891,13 +1923,35 @@
 								</div>
 							{/if}
 
-							{#if files.length > 0}
+							{#if files.length > 0 || memoryOn}
 								<div
 									class="mx-2 mt-2 pb-1 flex items-center flex-wrap gap-1.5"
 									dir={$settings?.chatDirection ?? 'auto'}
 								>
 									{#each files as file, fileIdx}
-										{#if file.type === 'image' || (file?.content_type ?? '').startsWith('image/')}
+										{#if file?.type === 'collection'}
+											<!-- Active context: an attached knowledge base, shown as a compact chip. -->
+											<div
+												class="flex items-center gap-1.5 h-7 rounded-full border border-red-300 dark:border-red-900 bg-red-50/60 dark:bg-red-950/20 pl-1.5 pr-1 text-xs text-gray-800 dark:text-gray-100"
+											>
+												<span
+													class="flex size-4.5 items-center justify-center rounded-md bg-white dark:bg-gray-900 text-[0.625rem] font-semibold text-red-600 dark:text-red-400"
+													aria-hidden="true">K</span
+												>
+												<span class="max-w-48 truncate">{file.name}</span>
+												<button
+													type="button"
+													class="flex size-5 items-center justify-center rounded-full text-gray-500 hover:text-gray-900 dark:hover:text-white"
+													aria-label={$i18n.t('Remove {{name}}', { name: file.name })}
+													on:click={() => {
+														files.splice(fileIdx, 1);
+														files = files;
+													}}
+												>
+													<XMark className="size-3" />
+												</button>
+											</div>
+										{:else if file.type === 'image' || (file?.content_type ?? '').startsWith('image/')}
 											{@const fileUrl =
 												file.url.startsWith('data') || file.url.startsWith('http')
 													? file.url
@@ -1983,6 +2037,26 @@
 											/>
 										{/if}
 									{/each}
+
+									{#if memoryOn}
+										<!-- Active context: memories are added to this chat's requests. -->
+										<Tooltip
+											content={$i18n.t('Your saved memories are used in this chat. Click to manage.')}
+											placement="top"
+										>
+											<button
+												type="button"
+												class="flex items-center gap-1.5 h-7 rounded-full border border-gray-200 dark:border-gray-800 pl-1.5 pr-2.5 text-xs text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+												on:click={() => showSettings.set('personalization')}
+											>
+												<span
+													class="flex size-4.5 items-center justify-center rounded-md bg-gray-100 dark:bg-gray-800 text-[0.625rem] font-semibold"
+													aria-hidden="true">M</span
+												>
+												{$i18n.t('Memory on')}
+											</button>
+										</Tooltip>
+									{/if}
 								</div>
 							{/if}
 
@@ -2014,6 +2088,7 @@
 											{#key $settings?.showFormattingToolbar ?? false}
 												<RichTextInput
 													bind:this={chatInputElement}
+													bind:editor={chatInputEditor}
 													id="chat-input"
 													editable={!showInputModal}
 													onChange={(content) => {
@@ -2243,21 +2318,52 @@
 										<button
 											type="button"
 											id="input-menu-button"
-											class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-[1.875rem] flex justify-center items-center outline-hidden focus:outline-hidden shrink-0"
-											aria-label={$i18n.t('More')}
+											class={labelledButtonClass}
+											aria-label={$i18n.t('Attach')}
 										>
-											<PlusAlt className="size-5" />
+											<PlusAlt className="size-4" />
+											<span class="hidden @md:inline">{$i18n.t('Attach')}</span>
 										</button>
 									</InputMenu>
 
-									{#if showWebSearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || showSkillsButton || (toggleFilters && toggleFilters.length > 0)}
-										<div
-											class="flex self-center w-[0.0625rem] h-4 mx-1 bg-gray-200/50 dark:bg-gray-800/50 shrink-0"
-										/>
-									{/if}
+									<div class="flex flex-1 items-center gap-1 ml-1 min-w-0 overflow-x-auto scrollbar-none">
+									<!-- Labelled shortcuts that open the same pickers as typing "/" and "#". -->
+									<Tooltip
+										content={$i18n.t('Type / to insert a prompt or skill')}
+										placement="top"
+										className="flex shrink-0"
+									>
+										<button
+											type="button"
+											id="input-prompts-skills-button"
+											class={labelledButtonClass}
+											aria-label={$i18n.t('Prompts & skills')}
+											on:click={() => openCommandPicker('/')}
+										>
+											<span class="font-medium" aria-hidden="true">/</span>
+											<span class="hidden @md:inline">{$i18n.t('Prompts & skills')}</span>
+										</button>
+									</Tooltip>
 
-									<div class="flex flex-1 items-center min-w-0 overflow-x-auto scrollbar-none">
-										{#if showWebSearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || showSkillsButton || (toggleFilters && toggleFilters.length > 0)}
+									<Tooltip
+										content={$i18n.t('Type # to add knowledge')}
+										placement="top"
+										className="flex shrink-0"
+									>
+										<button
+											type="button"
+											id="input-knowledge-button"
+											class={labelledButtonClass}
+											aria-label={$i18n.t('Knowledge')}
+											on:click={() => openCommandPicker('#')}
+										>
+											<span class="font-medium" aria-hidden="true">#</span>
+											<span class="hidden @md:inline">{$i18n.t('Knowledge')}</span>
+										</button>
+									</Tooltip>
+
+										{#if showIntegrationsMenu}
+											<div class="flex shrink-0">
 											<IntegrationsMenu
 												selectedModels={selectedModelIds}
 												{toggleFilters}
@@ -2294,12 +2400,20 @@
 												<button
 													type="button"
 													id="integration-menu-button"
-													class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-[1.875rem] flex justify-center items-center outline-hidden focus:outline-hidden shrink-0"
-													aria-label={$i18n.t('Integrations')}
+													class={labelledButtonClass}
+													aria-label={$i18n.t('Tools')}
 												>
-													<Component className="size-4.5" strokeWidth="1.5" />
+													<Component className="size-4" strokeWidth="1.5" />
+													<span class="hidden @md:inline">{$i18n.t('Tools')}</span>
+													{#if (selectedToolIds ?? []).length > 0}
+														<span
+															class="min-w-4 rounded-full bg-gray-100 dark:bg-gray-800 px-1 text-center text-[0.6875rem] text-gray-600 dark:text-gray-300"
+															>{(selectedToolIds ?? []).length}</span
+														>
+													{/if}
 												</button>
 											</IntegrationsMenu>
+											</div>
 										{/if}
 
 										{#if selectedModelIds.length === 1 && $models.find((m) => m.id === selectedModelIds[0])?.has_user_valves}
@@ -2322,7 +2436,7 @@
 										{/if}
 
 										<div class="ml-1 flex gap-1.5 shrink-0">
-											{#if (selectedToolIds ?? []).length > 0}
+											{#if !showIntegrationsMenu && (selectedToolIds ?? []).length > 0}
 												<Tooltip
 													content={$i18n.t('{{COUNT}} Available Tools', {
 														COUNT: (selectedToolIds ?? []).length
@@ -2345,28 +2459,7 @@
 												</Tooltip>
 											{/if}
 
-											{#if (selectedSkillIds ?? []).length > 0}
-												<Tooltip
-													content={$i18n.t('{{COUNT}} Available Skills', {
-														COUNT: (selectedSkillIds ?? []).length
-													})}
-												>
-													<button
-														class="translate-y-[0.5px] px-1 flex gap-1 items-center text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg self-center transition"
-														aria-label="Available Skills"
-														type="button"
-														on:click={() => {
-															showSkills = !showSkills;
-														}}
-													>
-														<Cube className="size-4" strokeWidth="1.75" />
-
-														<span class="text-sm">
-															{(selectedSkillIds ?? []).length}
-														</span>
-													</button>
-												</Tooltip>
-											{/if}
+											<!-- No separate skills counter: the model's skills still apply; users add more via "/ Prompts & skills". -->
 
 											{#each selectedFilterIds as filterId (filterId)}
 												{@const filter = toggleFilters.find((f) => f.id === filterId)}
