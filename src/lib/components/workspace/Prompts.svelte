@@ -382,11 +382,7 @@
 		</div>
 	</DeleteConfirmDialog>
 
-	<Modal
-		bind:show={showCreateModal}
-		size="full"
-		className="!w-[calc(100vw-2rem)] sm:!w-[calc(100vw-3rem)] lg:!w-[calc(100vw-4rem)] !max-w-[80rem] h-[min(54rem,calc(100dvh-4rem))] max-h-[calc(100dvh-4rem)] flex flex-col bg-white dark:bg-gray-900 rounded-4xl"
-	>
+	<Modal bind:show={showCreateModal} size="md" className="bg-white dark:bg-gray-900 rounded-2xl">
 		{#key createPrompt}
 			<PromptEditor
 				modal={true}

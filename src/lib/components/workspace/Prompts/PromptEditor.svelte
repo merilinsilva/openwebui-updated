@@ -71,6 +71,19 @@
 
 	let suggestionTags = [];
 
+	const fieldClass =
+		'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-hidden placeholder:text-gray-400 focus:border-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:focus:border-gray-500';
+
+	// One-line "who can see this" for the create form footer.
+	$: accessSummary = (() => {
+		const grants = accessGrants ?? [];
+		if (grants.length === 0) return $i18n.t('Only you can see this prompt.');
+		if (grants.some((g) => g.principal_id === '*')) {
+			return $i18n.t('Everyone at Weidmann can use this prompt.');
+		}
+		return $i18n.t('Shared with selected people or teams.');
+	})();
+
 	$: if (!edit && !hasManualEdit) {
 		command = name !== '' ? slugify(name) : '';
 	}
@@ -541,127 +554,157 @@
 	</div>
 {:else}
 	<!-- Create mode: Form -->
-	<div class="w-full max-h-full {modal ? 'h-full flex flex-col' : ''}">
+	<div class="w-full max-h-full text-gray-900 dark:text-gray-100 {modal ? 'flex flex-col' : ''}">
 		{#if modal}
-			<div class="flex justify-between items-center dark:text-gray-100 px-5 pt-4 pb-2">
-				<h3 class="text-sm">{$i18n.t('Create Prompt')}</h3>
+			<div class="flex items-center justify-between px-5 pt-4">
+				<h2 class="text-base font-semibold">{$i18n.t('New prompt')}</h2>
 				<button
-					class="self-center shrink-0 ml-2"
+					class="rounded-lg p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 					aria-label={$i18n.t('Close')}
 					type="button"
 					on:click={() => {
 						onCancel();
 					}}
 				>
-					<XMark className="size-5" />
+					<XMark className="size-4" />
 				</button>
 			</div>
 		{/if}
 
 		<form
-			class="flex flex-col w-full {modal ? 'px-5 pb-3 flex-1 min-h-0' : 'mb-10'}"
+			class="flex w-full flex-col gap-4 {modal ? 'px-5 pt-4 pb-4' : 'mb-10'}"
 			on:submit|preventDefault={submitHandler}
 		>
-			<div class="mb-2 shrink-0">
-				<Tooltip
-					content={`${$i18n.t('Only alphanumeric characters and hyphens are allowed')} - ${$i18n.t('Activate this command by typing "/{{COMMAND}}" to chat input.', { COMMAND: command })}`}
-					placement="bottom-start"
-				>
-					<div class="flex flex-col w-full">
-						<div class="flex items-center">
-							<input
-								class="w-full bg-transparent text-sm outline-hidden"
-								placeholder={$i18n.t('Name')}
-								bind:value={name}
-								required
-							/>
-							<div class="self-center shrink-0">
-								<AccessButton on:click={() => (showAccessControlModal = true)} />
-							</div>
-						</div>
-						<div class="flex gap-0.5 items-center text-xs text-gray-500">
-							<div>/</div>
-							<input
-								class="w-full bg-transparent outline-hidden"
-								placeholder={$i18n.t('Command')}
-								bind:value={command}
-								on:input={handleCommandInput}
-								required
-							/>
-						</div>
-
-						<div class="mt-1">
-							<Tags
-								{tags}
-								{suggestionTags}
-								on:add={(e) => {
-									tags = [...tags, { name: e.detail }];
-								}}
-								on:delete={(e) => {
-									tags = tags.filter((tag) => tag.name !== e.detail);
-								}}
-							/>
-						</div>
-					</div>
-				</Tooltip>
+			<div class="flex flex-col gap-1.5">
+				<label for="prompt-name" class="text-sm font-semibold">{$i18n.t('Name')}</label>
+				<input
+					id="prompt-name"
+					class={fieldClass}
+					placeholder={$i18n.t('e.g. Meeting minutes from notes')}
+					bind:value={name}
+					required
+				/>
 			</div>
 
-			<div class={modal ? 'my-2 flex-1 min-h-0 flex flex-col' : 'my-2'}>
-				<div class="text-gray-500 text-xs">{$i18n.t('Prompt Content')}</div>
-				<div class={modal ? 'mt-1 flex-1 min-h-0 flex flex-col' : 'mt-1'}>
-					{#if modal}
-						<textarea
-							class="w-full flex-1 min-h-0 resize-none bg-transparent text-xs outline-hidden"
-							placeholder={$i18n.t('Write a summary in 50 words that summarizes {{topic}}.')}
-							bind:value={content}
-							required
-						></textarea>
-					{:else}
-						<Textarea
-							className="text-xs w-full bg-transparent outline-hidden overflow-y-hidden resize-none"
-							placeholder={$i18n.t('Write a summary in 50 words that summarizes {{topic}}.')}
-							bind:value={content}
-							rows={6}
-							required
-						/>
-					{/if}
-					<div class="text-xs text-gray-400 dark:text-gray-500">
-						ⓘ {$i18n.t('Use')}
-						<span class="font-normal text-gray-600 dark:text-gray-300"
-							>{'{{'}{$i18n.t('variable')}{'}}'}</span
-						>
-						{$i18n.t('for placeholders')}
-					</div>
+			<div class="flex flex-col gap-1.5">
+				<label for="prompt-command" class="text-sm font-semibold">{$i18n.t('Command')}</label>
+				<div
+					class="flex items-center rounded-lg border border-gray-300 bg-white px-3 focus-within:border-gray-500 dark:border-gray-700 dark:bg-gray-900"
+				>
+					<span class="text-sm text-gray-500">/</span>
+					<input
+						id="prompt-command"
+						class="w-full bg-transparent py-2 pl-0.5 text-sm outline-hidden placeholder:text-gray-400"
+						placeholder={$i18n.t('meeting-minutes')}
+						bind:value={command}
+						on:input={handleCommandInput}
+						required
+					/>
 				</div>
+				<p class="text-xs text-gray-500">
+					{$i18n.t('Type /{{COMMAND}} in the message box to use it. Letters, numbers and hyphens only.', {
+						COMMAND: command || $i18n.t('command')
+					})}
+				</p>
 			</div>
 
-			<div class="flex justify-end {modal ? 'pt-3 gap-2 shrink-0' : 'my-4 pb-20'}">
-				{#if modal}
-					<button
-						class="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 transition"
-						type="button"
-						on:click={() => {
-							onCancel();
-						}}
-					>
-						{$i18n.t('Cancel')}
-					</button>
-				{/if}
-
-				<button
-					class="{modal
-						? 'px-3.5 py-1.5 text-xs rounded-full w-fit'
-						: 'text-xs w-full lg:w-fit px-4 py-2 rounded-xl'} transition bg-black hover:bg-gray-900 text-white dark:bg-white dark:hover:bg-gray-100 dark:text-black flex justify-center"
-					type="submit"
-					disabled={loading}
+			<div class="flex flex-col gap-1.5">
+				<label for="prompt-topics" class="text-sm font-semibold">
+					{$i18n.t('Topics')}
+					<span class="font-normal text-gray-500">({$i18n.t('optional')})</span>
+				</label>
+				<!-- Bordered like the other fields; clicking anywhere in the box focuses the input. -->
+				<!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+				<div
+					class="flex min-h-[2.375rem] cursor-text items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 focus-within:border-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:focus-within:border-gray-500"
+					on:click={() => document.getElementById('prompt-topics')?.focus()}
 				>
-					<div class="font-normal">{$i18n.t('Save & Create')}</div>
-					{#if loading}
-						<div class="ml-1.5">
-							<Spinner />
-						</div>
-					{/if}
+					<Tags
+						id="prompt-topics"
+						{tags}
+						{suggestionTags}
+						splitOnSpace={false}
+						inputClassName="text-sm py-0.5"
+						placeholder={tags.length > 0
+							? $i18n.t('Add another topic…')
+							: $i18n.t('e.g. Email & Outlook')}
+						on:add={(e) => {
+							tags = [...tags, { name: e.detail }];
+						}}
+						on:delete={(e) => {
+							tags = tags.filter((tag) => tag.name !== e.detail);
+						}}
+					/>
+				</div>
+				<p class="text-xs text-gray-500">
+					{$i18n.t('Press Enter after each topic. Helps people find it in the Prompts & skills library.')}
+				</p>
+			</div>
+
+			<div class="flex flex-col gap-1.5">
+				<label for="prompt-content" class="text-sm font-semibold">{$i18n.t('Prompt')}</label>
+				{#if modal}
+					<textarea
+						id="prompt-content"
+						class="{fieldClass} min-h-[9rem] max-h-[40dvh] resize-y"
+						placeholder={$i18n.t('Write a summary in 50 words that summarizes {{topic}}.')}
+						bind:value={content}
+						required
+					></textarea>
+				{:else}
+					<Textarea
+						className="{fieldClass} overflow-y-hidden resize-none"
+						placeholder={$i18n.t('Write a summary in 50 words that summarizes {{topic}}.')}
+						bind:value={content}
+						rows={6}
+						required
+					/>
+				{/if}
+				<p class="text-xs text-gray-500">
+					{$i18n.t('Use')}
+					<span class="font-mono text-gray-700 dark:text-gray-300">{'{{'}{$i18n.t('variable')}{'}}'}</span>
+					{$i18n.t('for details people fill in when they use the prompt, e.g.')}
+					<span class="font-mono text-gray-700 dark:text-gray-300">{'{{meeting_title}}'}</span>.
+				</p>
+			</div>
+
+			<div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+				<button
+					type="button"
+					class="flex min-w-0 items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+					title={$i18n.t('Change who can use this prompt')}
+					on:click={() => (showAccessControlModal = true)}
+				>
+					<span class="truncate">{accessSummary}</span>
+					<span class="shrink-0 underline">{$i18n.t('Change')}</span>
 				</button>
+
+				<div class="ml-auto flex items-center gap-2">
+					{#if modal}
+						<button
+							class="rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+							type="button"
+							on:click={() => {
+								onCancel();
+							}}
+						>
+							{$i18n.t('Cancel')}
+						</button>
+					{/if}
+
+					<button
+						class="flex items-center rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+						type="submit"
+						disabled={loading}
+					>
+						{$i18n.t('Create prompt')}
+						{#if loading}
+							<div class="ml-1.5">
+								<Spinner />
+							</div>
+						{/if}
+					</button>
+				</div>
 			</div>
 		</form>
 	</div>

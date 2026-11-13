@@ -10,6 +10,12 @@
 	export let tags: Tag[] = [];
 	export let suggestionTags: (Tag | string | null | undefined)[] = [];
 	export let disabled = false;
+	// Opt-in overrides; the defaults keep the original compact look and behaviour.
+	export let placeholder = '';
+	export let inputClassName = 'text-xs';
+	// When false, only Enter adds a tag, so multi-word tags ("Email & Outlook") are possible.
+	export let splitOnSpace = true;
+	export let id: string | undefined = undefined;
 
 	let inputValue = '';
 	let inputElement: HTMLInputElement | null = null;
@@ -90,10 +96,11 @@
 			<input
 				bind:this={inputElement}
 				bind:value={inputValue}
+				{id}
 				class="w-full {tags.length > 0
 					? 'px-0.5'
-					: ''} text-xs bg-transparent outline-hidden placeholder:text-gray-400 dark:placeholder:text-gray-500"
-				placeholder={$i18n.t('Add a tag...')}
+					: ''} {inputClassName} bg-transparent outline-hidden placeholder:text-gray-400 dark:placeholder:text-gray-500"
+				placeholder={placeholder || $i18n.t('Add a tag...')}
 				role="combobox"
 				aria-autocomplete="list"
 				aria-expanded={suggestionsOpen && filteredSuggestionTags.length > 0}
@@ -107,7 +114,7 @@
 					positionPopup();
 				}}
 				on:keydown={(event) => {
-					if (event.key === 'Enter' || event.key === ' ') {
+					if (event.key === 'Enter' || (splitOnSpace && event.key === ' ')) {
 						event.preventDefault();
 						addTag();
 					} else if (event.key === 'Escape') {

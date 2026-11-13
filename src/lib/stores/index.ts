@@ -138,6 +138,16 @@ export const showChangelog = writable(false);
 export const howToUseContent: Writable<{ title: string; content: string } | null> = writable(null);
 export const showHowToUse = writable(false);
 
+// Prompts & skills library dialog (opened from the sidebar).
+export const showPromptLibrary = writable(false);
+
+// A prompt or skill picked in the library, waiting for the chat message input to take it.
+// MessageInput consumes it (and resets it to null) once mounted.
+export type ChatInputInsert =
+	| { type: 'prompt'; name: string; content: string }
+	| { type: 'skill'; id: string; name: string };
+export const chatInputInsert: Writable<ChatInputInsert | null> = writable(null);
+
 export const showControls = writable(false);
 export const showEmbeds = writable(false);
 export const showOverview = writable(false);

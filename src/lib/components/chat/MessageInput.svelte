@@ -38,7 +38,8 @@
 		showFileNavDir,
 		selectedTerminalId,
 		TTSWorker,
-		temporaryChatEnabled
+		temporaryChatEnabled,
+		chatInputInsert
 	} from '$lib/stores';
 
 	import {
@@ -213,6 +214,10 @@
 	let inputVariablesModalCallback = (variableValues) => {};
 	let inputVariables = {};
 	let inputVariableValues = {};
+	// Shown in the variables form: the prompt's name (when known) and its raw text for the preview.
+	let inputVariablesTitle = '';
+	let inputVariablesTemplate = '';
+	let nextInputVariablesTitle = '';
 
 	let showValvesModal = false;
 	let showStatusPanel = false;
@@ -257,6 +262,8 @@
 		}
 
 		// Show modal and wait for the user's input.
+		inputVariablesTemplate = text;
+		inputVariablesTitle = nextInputVariablesTitle;
 		showInputVariablesModal = true;
 		return await new Promise<string>((resolve) => {
 			inputVariablesModalCallback = (variableValues) => {
@@ -699,6 +706,39 @@
 	let showSkills = false;
 
 	let loaded = false;
+
+	// A prompt or skill picked in the Prompts & skills library (sidebar). Prompts replace the
+	// input text (like the new-chat task cards) and open the variables form if they have any;
+	// skills are appended as the same <$id|label> mention the "/" menu and skill chips produce.
+	const consumeChatInputInsert = async (item) => {
+		chatInputInsert.set(null);
+
+		// The editor renders after `loaded`; wait for it when we just navigated to a new chat.
+		for (let i = 0; i < 30 && !document.getElementById('chat-input'); i++) {
+			await new Promise((resolve) => requestAnimationFrame(resolve));
+		}
+
+		if (item.type === 'prompt') {
+			// Picked up by inputVariableHandler if the prompt has {{variables}}.
+			nextInputVariablesTitle = item.name ?? '';
+			await setText(item.content ?? '');
+			nextInputVariablesTitle = '';
+		} else if (item.type === 'skill') {
+			if ((prompt ?? '').includes(`<$${item.id}`)) {
+				focus();
+				return;
+			}
+			// The input's mention parser stops at these characters.
+			const label = (item.name ?? item.id).replace(/[<>&|]/g, '').trim() || item.id;
+			const current = (prompt ?? '').trimEnd();
+			await setText(`${current ? `${current} ` : ''}<$${item.id}|${label}> `);
+		}
+	};
+
+	$: if (loaded && $chatInputInsert) {
+		consumeChatInputInsert($chatInputInsert);
+	}
+
 	let recording = false;
 
 	let isComposing = false;
@@ -1633,6 +1673,8 @@
 <InputVariablesModal
 	bind:show={showInputVariablesModal}
 	variables={inputVariables}
+	promptName={inputVariablesTitle}
+	template={inputVariablesTemplate}
 	onSave={inputVariablesModalCallback}
 />
 

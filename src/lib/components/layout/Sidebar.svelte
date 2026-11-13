@@ -28,10 +28,12 @@
 		sidebarWidth,
 		showSettings,
 		howToUseContent,
-		showHowToUse
+		showHowToUse,
+		showPromptLibrary
 	} from '$lib/stores';
 	import { getHowToUse } from '$lib/apis/configs';
 	import HowToUseModal from './HowToUseModal.svelte';
+	import PromptsSkillsLibrary from './PromptsSkillsLibrary.svelte';
 	import QuestionMarkCircle from '../icons/QuestionMarkCircle.svelte';
 	import { getMemories } from '$lib/apis/memories';
 	import BookOpen from '../icons/BookOpen.svelte';
@@ -832,8 +834,6 @@
 
 	// Fixed library entries under Search (kept out of the user-sortable pinned list so
 	// they show even for users who already saved their own pinned-menu order).
-	$: canPrompts = $user?.role === 'admin' || ($user?.permissions?.workspace?.prompts ?? false);
-	$: canSkills = $user?.role === 'admin' || ($user?.permissions?.workspace?.skills ?? false);
 	$: canKnowledge = $user?.role === 'admin' || ($user?.permissions?.workspace?.knowledge ?? false);
 	// Same check SettingsModal uses for the Personalization (memory) tab.
 	$: canMemory =
@@ -841,16 +841,14 @@
 		($user?.role === 'admin' || ($user?.permissions?.features?.memories ?? true));
 
 	$: libraryItems = [
-		...(canPrompts || canSkills
-			? [
-					{
-						id: 'prompts-skills',
-						label: 'Prompts & skills',
-						href: canPrompts ? '/workspace/prompts' : '/workspace/skills',
-						prefixes: ['/workspace/prompts', '/workspace/skills']
-					}
-				]
-			: []),
+		// Opens the library dialog. Everyone can browse and use prompts/skills shared with
+		// them; creating new ones still needs the workspace permission (checked in the dialog).
+		{
+			id: 'prompts-skills',
+			label: 'Prompts & skills',
+			href: null,
+			prefixes: ['/workspace/prompts', '/workspace/skills']
+		},
 		...(canKnowledge
 			? [
 					{
@@ -995,6 +993,7 @@
 	{/if}
 
 	<HowToUseModal />
+	<PromptsSkillsLibrary />
 
 	<SearchModal
 		bind:show={$showSearch}
@@ -1367,7 +1366,9 @@
 									draggable="false"
 									aria-label={$i18n.t(item.label)}
 									on:click={() => {
-										if (item.id === 'memory') {
+										if (item.id === 'prompts-skills') {
+											showPromptLibrary.set(true);
+										} else if (item.id === 'memory') {
 											// Memories are managed in Settings > Personalization.
 											showSettings.set('personalization');
 											closeMobileSidebar();
