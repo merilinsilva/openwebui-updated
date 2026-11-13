@@ -11,6 +11,8 @@
 	export let className =
 		'w-full rounded-lg px-3.5 py-2 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden  h-full';
 	export let ariaLabel: string | null = null;
+	// Optional, so a <label for> can point at the textarea.
+	export let id: string | undefined = undefined;
 
 	export let onInput: (event: Event) => void = () => {};
 	export let onBlur: (event: FocusEvent) => void = () => {};
@@ -75,6 +77,7 @@
 <textarea
 	bind:this={textareaElement}
 	bind:value
+	{id}
 	{placeholder}
 	aria-label={ariaLabel || placeholder}
 	class={className}

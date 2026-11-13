@@ -1,10 +1,13 @@
+<script lang="ts" context="module">
+	// Keep in sync with the tool list below (used for "12 of 16 tools on").
+	export const BUILTIN_TOOL_COUNT = 16;
+</script>
+
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
-	import Checkbox from '$lib/components/common/Checkbox.svelte';
-	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import { marked } from 'marked';
+	import Switch from '$lib/components/common/Switch.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -75,11 +78,24 @@
 		}
 	};
 
-	const allTools = Object.keys(toolLabels) as Array<keyof typeof toolLabels>;
+	type Tool = keyof typeof toolLabels;
 
+	const groups: { title: string; tools: Tool[] }[] = [
+		{
+			title: $i18n.t('Look things up'),
+			tools: ['time', 'web_search', 'knowledge', 'files', 'chats', 'memory', 'notes', 'channels']
+		},
+		{
+			title: $i18n.t('Take actions'),
+			tools: ['image_generation', 'code_interpreter', 'calendar', 'automations', 'notifications', 'tasks']
+		},
+		{ title: $i18n.t('Work with the user'), tools: ['user_input', 'subagents'] }
+	];
+
+	// Stored as { tool: false } for switched-off tools; everything else is on.
 	export let builtinTools: Record<string, boolean> = {};
 
-	const setBuiltinTool = (tool: keyof typeof toolLabels, checked: boolean) => {
+	const setBuiltinTool = (tool: Tool, checked: boolean) => {
 		if (checked) {
 			delete builtinTools[tool];
 		} else {
@@ -89,32 +105,29 @@
 	};
 </script>
 
-<div>
-	<div class="mb-1.5 text-xs text-gray-400 dark:text-gray-600">{$i18n.t('Builtin Tools')}</div>
-	<div class="grid grid-cols-1 gap-x-5 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
-		{#each allTools as tool}
-			<div class="flex min-h-6 items-center gap-2.5">
-				<Checkbox
-					ariaLabel={$i18n.t(toolLabels[tool].label)}
-					state={builtinTools[tool] !== false ? 'checked' : 'unchecked'}
-					on:change={(e) => {
-						setBuiltinTool(tool, e.detail === 'checked');
-					}}
-				/>
-				<button
-					type="button"
-					class="min-w-0 cursor-pointer text-left text-xs text-gray-600 dark:text-gray-400"
-					on:click={() => setBuiltinTool(tool, builtinTools[tool] === false)}
-				>
-					<Tooltip
-						as="span"
-						className="block min-w-0"
-						content={marked.parse(toolLabels[tool].description)}
-					>
-						<span class="block truncate">{$i18n.t(toolLabels[tool].label)}</span>
-					</Tooltip>
-				</button>
+<div class="flex flex-col gap-3">
+	{#each groups as group (group.title)}
+		<div>
+			<div class="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-300">{group.title}</div>
+			<div class="grid gap-x-6 sm:grid-cols-2">
+				{#each group.tools as tool (tool)}
+					<div class="flex items-center justify-between gap-3 py-1" title={toolLabels[tool].description}>
+						<label
+							for="builtin-tool-{tool}"
+							id="builtin-tool-{tool}-label"
+							class="min-w-0 cursor-pointer truncate text-xs text-gray-700 dark:text-gray-300"
+						>
+							{toolLabels[tool].label}
+						</label>
+						<Switch
+							id="builtin-tool-{tool}"
+							ariaLabelledbyId="builtin-tool-{tool}-label"
+							state={builtinTools[tool] !== false}
+							on:change={(e) => setBuiltinTool(tool, e.detail)}
+						/>
+					</div>
+				{/each}
 			</div>
-		{/each}
-	</div>
+		</div>
+	{/each}
 </div>
