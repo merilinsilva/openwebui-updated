@@ -5,6 +5,7 @@
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import SearchInput from './Sidebar/SearchInput.svelte';
+	import XMark from '$lib/components/icons/XMark.svelte';
 	import {
 		getChatById,
 		getChatList,
@@ -573,9 +574,27 @@
 	</div>
 </DeleteConfirmDialog>
 
-<Modal size="xl" bind:show>
-	<div class="py-2.5 dark:text-gray-300 text-gray-700">
-		<div class="px-3.5 pb-1">
+<Modal size="xl" bind:show className="bg-white dark:bg-gray-900 rounded-2xl">
+	<div class="pt-4 text-gray-800 dark:text-gray-200">
+		<div class="flex items-center justify-between px-5">
+			<h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+				{$i18n.t('Search chats')}
+			</h2>
+			<button
+				class="rounded-lg p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+				type="button"
+				aria-label={$i18n.t('Close')}
+				on:click={() => {
+					show = false;
+				}}
+			>
+				<XMark className="size-4" />
+			</button>
+		</div>
+		<!-- Bordered like the other search boxes (SearchInput itself is shared, so it is wrapped). -->
+		<div
+			class="mx-5 mt-3 mb-3 rounded-lg border border-gray-300 px-2 focus-within:border-gray-500 dark:border-gray-700 dark:focus-within:border-gray-500"
+		>
 			<SearchInput
 				bind:value={query}
 				on:input={searchHandler}
@@ -608,19 +627,19 @@
 			/>
 		</div>
 
-		<div class="flex px-3.5 pb-0.5">
+		<div class="flex border-t border-gray-200 dark:border-gray-800">
 			<div
-				class="flex flex-col overflow-y-auto h-96 md:h-[40rem] max-h-full scrollbar-hidden w-full flex-1 pr-2"
+				class="flex flex-col overflow-y-auto h-96 md:h-[34rem] max-h-full scrollbar-hidden w-full flex-1 md:flex-none md:w-[24rem] px-3 py-3"
 			>
-				<div class="w-full text-xs text-gray-500 dark:text-gray-500 font-normal pb-2 px-2">
+				<div class="w-full text-[0.6875rem] font-semibold tracking-wide uppercase text-gray-500 dark:text-gray-400 pb-1.5 px-2">
 					{$i18n.t('Actions')}
 				</div>
 
 				{#each actions as action, idx (action.label)}
 					<button
-						class="w-full flex items-center rounded-lg text-sm py-1.5 px-2.5 hover:bg-gray-50/70 dark:hover:bg-gray-850/50 {selectedIdx ===
+						class="w-full flex items-center rounded-lg text-sm py-1.5 px-2.5 hover:bg-gray-100 dark:hover:bg-gray-800/60 {selectedIdx ===
 						idx
-							? 'bg-gray-50/70 dark:bg-gray-850/50'
+							? 'bg-gray-100 dark:bg-gray-800'
 							: ''}"
 						data-arrow-selected={selectedIdx === idx ? 'true' : undefined}
 						draggable="false"
@@ -654,7 +673,7 @@
 					{#each chatList as chat, idx (chat.id)}
 						{#if idx === 0 || (idx > 0 && chat.time_range !== chatList[idx - 1].time_range)}
 							<div
-								class="w-full text-xs text-gray-500 dark:text-gray-500 font-normal {idx === 0
+								class="w-full text-[0.6875rem] font-semibold tracking-wide uppercase text-gray-500 dark:text-gray-400 {idx === 0
 									? ''
 									: 'pt-4'} pb-1.5 px-2"
 							>
@@ -682,9 +701,9 @@
 
 						<!-- svelte-ignore a11y-no-static-element-interactions -->
 						<div
-							class="w-full flex justify-between items-center rounded-lg text-sm py-1.5 pl-2.5 pr-32 hover:bg-gray-50/70 dark:hover:bg-gray-850/50 group/item relative {selectedIdx ===
+							class="w-full flex justify-between items-center rounded-lg text-sm py-1.5 pl-2.5 pr-32 hover:bg-gray-100 dark:hover:bg-gray-800/60 group/item relative {selectedIdx ===
 							idx + actions.length
-								? 'bg-gray-50/70 dark:bg-gray-850/50'
+								? 'bg-gray-100 dark:bg-gray-800'
 								: ''}"
 							data-arrow-selected={selectedIdx === idx + actions.length ? 'true' : undefined}
 							on:mouseenter={() => {
@@ -890,7 +909,7 @@
 			<div
 				id={messagesContainerId}
 				bind:this={messagesContainerElement}
-				class="hidden md:flex md:flex-1 w-full overflow-y-auto h-96 md:h-[40rem] scrollbar-hidden @container"
+				class="hidden md:flex md:flex-1 w-full overflow-y-auto h-96 md:h-[34rem] scrollbar-hidden @container border-l border-gray-200 bg-gray-50/60 dark:border-gray-800 dark:bg-white/[0.02]"
 			>
 				{#if messages === null}
 					<div
