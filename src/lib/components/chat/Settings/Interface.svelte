@@ -19,7 +19,7 @@
 		dispatch('save');
 	}}
 >
-	<h2 class="text-sm font-medium text-gray-900 dark:text-white mb-4">{$i18n.t('Interface')}</h2>
+	<h2 class="text-base font-semibold text-gray-900 dark:text-white mb-4">{$i18n.t('Interface')}</h2>
 
 	<div class="flex-1 min-h-0 overflow-y-auto scrollbar-hover pr-1.5">
 		<InterfaceSettings bind:this={interfaceSettings} {saveSettings} {personalSettingsValue} />
@@ -27,7 +27,7 @@
 
 	<div class="shrink-0 flex justify-end text-sm font-normal">
 		<button
-			class="px-3.5 py-1.5 text-sm font-normal bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full"
+			class="px-4 py-2 text-sm font-semibold bg-black hover:bg-gray-800 text-white dark:bg-white dark:text-black dark:hover:bg-gray-200 transition rounded-lg"
 			type="submit"
 		>
 			{$i18n.t('Save')}

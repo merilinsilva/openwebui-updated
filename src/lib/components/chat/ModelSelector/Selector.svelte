@@ -93,7 +93,7 @@
 
 	// Short purpose shown next to the selected model in the message box: its first tag.
 	$: purpose = (() => {
-		const m = selectedModel?.model;
+		const m = (selectedModel as any)?.model;
 		const tags = m?.tags ?? m?.info?.meta?.tags ?? [];
 		const first = tags[0];
 		return typeof first === 'string' ? first : (first?.name ?? '');

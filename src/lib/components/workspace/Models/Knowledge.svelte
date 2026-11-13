@@ -260,7 +260,7 @@
 	multiple
 	on:change={async () => {
 		if (inputFiles && inputFiles.length > 0) {
-			const _inputFiles = Array.from(inputFiles);
+			const _inputFiles = Array.from(inputFiles) as File[];
 			if (uploadToNewKnowledgeBase) {
 				uploadIntoNewKnowledgeBase(_inputFiles);
 			} else {

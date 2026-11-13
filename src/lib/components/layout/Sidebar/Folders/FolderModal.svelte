@@ -27,7 +27,7 @@
 	let meta = {
 		background_image_url: null
 	};
-	let data = {
+	let data: Record<string, any> = {
 		system_prompt: '',
 		files: []
 	};

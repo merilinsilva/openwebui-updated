@@ -560,7 +560,7 @@
 
 	<div class="shrink-0 flex w-full justify-end pt-3 text-sm font-normal">
 		<button
-			class="px-3.5 py-1.5 text-sm font-normal bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full"
+			class="px-4 py-2 text-sm font-semibold bg-black hover:bg-gray-800 text-white dark:bg-white dark:text-black dark:hover:bg-gray-200 transition rounded-lg"
 			on:click={async () => {
 				const res = await submitHandler();
 

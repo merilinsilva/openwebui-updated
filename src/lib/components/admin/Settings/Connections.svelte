@@ -219,6 +219,9 @@
 
 		await config.set(await getBackendConfig());
 	};
+
+	const addButtonClass =
+		'rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-800 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800';
 </script>
 
 <AddConnectionModal
@@ -233,12 +236,16 @@
 />
 
 <form class="flex h-full flex-col justify-between text-sm" on:submit|preventDefault={submitHandler}>
-	<h2 class="text-sm font-medium text-gray-900 dark:text-white mb-4">{$i18n.t('Connections')}</h2>
+	<h2 class="text-base font-semibold text-gray-900 dark:text-white mb-4">{$i18n.t('Connections')}</h2>
 
 	<div class="flex-1 min-h-0 overflow-y-auto scrollbar-hover pr-1.5">
 		{#if ENABLE_OPENAI_API !== null && ENABLE_OLLAMA_API !== null && connectionsConfig !== null}
-			<AdminSettingSection first>
-				<AdminSettingRow label={$i18n.t('OpenAI API')} let:labelId>
+			<AdminSettingSection
+				first
+				title={$i18n.t('OpenAI-compatible APIs')}
+				description={$i18n.t('Azure OpenAI, OpenAI and other services that speak the OpenAI API.')}
+			>
+				<AdminSettingRow label={$i18n.t('Use OpenAI-compatible APIs')} let:labelId>
 					<Switch
 						bind:state={ENABLE_OPENAI_API}
 						on:change={async () => {
@@ -249,55 +256,60 @@
 				</AdminSettingRow>
 
 				{#if ENABLE_OPENAI_API}
-					<div>
-						<div class="mb-2 flex items-center justify-between gap-4">
-							<div class="text-xs text-gray-600 dark:text-gray-400">
-								{$i18n.t('Manage OpenAI API Connections')}
-							</div>
-
-							<Tooltip content={$i18n.t(`Add Connection`)}>
-								<button
-									class="flex size-6 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-700 dark:text-gray-600 dark:hover:bg-white/5 dark:hover:text-gray-300"
-									on:click={() => {
-										showAddOpenAIConnectionModal = true;
-									}}
-									type="button"
-								>
-									<Plus />
-								</button>
-							</Tooltip>
-						</div>
-
-						<div class="flex flex-col gap-1.5">
+					{#if OPENAI_API_BASE_URLS.length > 0}
+						<ul
+							class="divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+						>
 							{#each OPENAI_API_BASE_URLS as url, idx}
-								<OpenAIConnection
-									bind:url={OPENAI_API_BASE_URLS[idx]}
-									bind:key={OPENAI_API_KEYS[idx]}
-									bind:config={OPENAI_API_CONFIGS[idx]}
-									pipeline={pipelineUrls[url] ? true : false}
-									onSubmit={() => {
-										updateOpenAIHandler();
-									}}
-									onDelete={() => {
-										OPENAI_API_BASE_URLS = OPENAI_API_BASE_URLS.filter(
-											(url, urlIdx) => idx !== urlIdx
-										);
-										OPENAI_API_KEYS = OPENAI_API_KEYS.filter((key, keyIdx) => idx !== keyIdx);
+								<li class="px-3 py-2">
+									<OpenAIConnection
+										bind:url={OPENAI_API_BASE_URLS[idx]}
+										bind:key={OPENAI_API_KEYS[idx]}
+										bind:config={OPENAI_API_CONFIGS[idx]}
+										pipeline={pipelineUrls[url] ? true : false}
+										onSubmit={() => {
+											updateOpenAIHandler();
+										}}
+										onDelete={() => {
+											OPENAI_API_BASE_URLS = OPENAI_API_BASE_URLS.filter(
+												(url, urlIdx) => idx !== urlIdx
+											);
+											OPENAI_API_KEYS = OPENAI_API_KEYS.filter((key, keyIdx) => idx !== keyIdx);
 
-										let newConfig: any = {};
-										OPENAI_API_BASE_URLS.forEach((url, newIdx) => {
-											newConfig[newIdx] = OPENAI_API_CONFIGS[newIdx < idx ? newIdx : newIdx + 1];
-										});
-										OPENAI_API_CONFIGS = newConfig;
-										updateOpenAIHandler();
-									}}
-								/>
+											let newConfig: any = {};
+											OPENAI_API_BASE_URLS.forEach((url, newIdx) => {
+												newConfig[newIdx] = OPENAI_API_CONFIGS[newIdx < idx ? newIdx : newIdx + 1];
+											});
+											OPENAI_API_CONFIGS = newConfig;
+											updateOpenAIHandler();
+										}}
+									/>
+								</li>
 							{/each}
-						</div>
+						</ul>
+					{:else}
+						<p class="text-xs text-gray-500">{$i18n.t('No connections yet.')}</p>
+					{/if}
+
+					<div>
+						<button
+							class={addButtonClass}
+							on:click={() => {
+								showAddOpenAIConnectionModal = true;
+							}}
+							type="button"
+						>
+							+ {$i18n.t('Add connection')}
+						</button>
 					</div>
 				{/if}
+			</AdminSettingSection>
 
-				<AdminSettingRow label={$i18n.t('Ollama API')} let:labelId>
+			<AdminSettingSection
+				title={$i18n.t('Ollama')}
+				description={$i18n.t('Models running on your own Ollama servers.')}
+			>
+				<AdminSettingRow label={$i18n.t('Use Ollama')} let:labelId>
 					<Switch
 						bind:state={ENABLE_OLLAMA_API}
 						on:change={async () => {
@@ -308,67 +320,69 @@
 				</AdminSettingRow>
 
 				{#if ENABLE_OLLAMA_API}
-					<div>
-						<div class="mb-2 flex items-center justify-between gap-4">
-							<div class="text-xs text-gray-600 dark:text-gray-400">
-								{$i18n.t('Manage Ollama API Connections')}
-							</div>
-
-							<Tooltip content={$i18n.t(`Add Connection`)}>
-								<button
-									class="flex size-6 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-700 dark:text-gray-600 dark:hover:bg-white/5 dark:hover:text-gray-300"
-									on:click={() => {
-										showAddOllamaConnectionModal = true;
-									}}
-									type="button"
-								>
-									<Plus />
-								</button>
-							</Tooltip>
-						</div>
-
-						<div class="flex flex-col gap-1.5">
+					{#if OLLAMA_BASE_URLS.length > 0}
+						<ul
+							class="divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+						>
 							{#each OLLAMA_BASE_URLS as url, idx}
-								<OllamaConnection
-									bind:url={OLLAMA_BASE_URLS[idx]}
-									bind:config={OLLAMA_API_CONFIGS[idx]}
-									{idx}
-									onSubmit={() => {
-										updateOllamaHandler();
-									}}
-									onDelete={() => {
-										OLLAMA_BASE_URLS = OLLAMA_BASE_URLS.filter((url, urlIdx) => idx !== urlIdx);
+								<li class="px-3 py-2">
+									<OllamaConnection
+										bind:url={OLLAMA_BASE_URLS[idx]}
+										bind:config={OLLAMA_API_CONFIGS[idx]}
+										{idx}
+										onSubmit={() => {
+											updateOllamaHandler();
+										}}
+										onDelete={() => {
+											OLLAMA_BASE_URLS = OLLAMA_BASE_URLS.filter((url, urlIdx) => idx !== urlIdx);
 
-										let newConfig: any = {};
-										OLLAMA_BASE_URLS.forEach((url, newIdx) => {
-											newConfig[newIdx] = OLLAMA_API_CONFIGS[newIdx < idx ? newIdx : newIdx + 1];
-										});
-										OLLAMA_API_CONFIGS = newConfig;
-										updateOllamaHandler();
-									}}
-								/>
+											let newConfig: any = {};
+											OLLAMA_BASE_URLS.forEach((url, newIdx) => {
+												newConfig[newIdx] = OLLAMA_API_CONFIGS[newIdx < idx ? newIdx : newIdx + 1];
+											});
+											OLLAMA_API_CONFIGS = newConfig;
+											updateOllamaHandler();
+										}}
+									/>
+								</li>
 							{/each}
-						</div>
+						</ul>
+					{:else}
+						<p class="text-xs text-gray-500">{$i18n.t('No connections yet.')}</p>
+					{/if}
 
-						<div class="mt-1 text-[0.6875rem] text-gray-400 dark:text-gray-600">
+					<div class="flex flex-wrap items-center justify-between gap-2">
+						<button
+							class={addButtonClass}
+							on:click={() => {
+								showAddOllamaConnectionModal = true;
+							}}
+							type="button"
+						>
+							+ {$i18n.t('Add connection')}
+						</button>
+						<p class="text-xs text-gray-500">
 							{$i18n.t('Trouble accessing Ollama?')}
 							<a
-								class="font-normal underline hover:text-gray-700 dark:hover:text-gray-300"
+								class="underline hover:text-gray-800 dark:hover:text-gray-200"
 								href="https://github.com/open-webui/open-webui#troubleshooting"
 								target="_blank"
 							>
 								{$i18n.t('Click here for help.')}
 							</a>
-						</div>
+						</p>
 					</div>
 				{/if}
 			</AdminSettingSection>
 
-			<AdminSettingSection title={$i18n.t('User Connections')}>
+			<AdminSettingSection
+				title={$i18n.t('User connections')}
+				description={$i18n.t('What users can connect themselves, and how the model list is loaded.')}
+			>
 				<AdminSettingRow
-					label={$i18n.t('Direct Connections')}
+					label={$i18n.t('Direct connections')}
 					description={$i18n.t(
-						'Direct Connections allow users to connect to their own OpenAI compatible API endpoints.'
+						'Let users connect their own OpenAI-compatible endpoints in their personal settings.'
 					)}
 					let:labelId
 				>
@@ -382,29 +396,27 @@
 				</AdminSettingRow>
 
 				<AdminSettingRow
-					label={$i18n.t('Cache Base Model List')}
+					label={$i18n.t('Cache base model list')}
 					description={$i18n.t(
-						'Base Model List Cache speeds up access by fetching base models only at startup or on settings save—faster, but may not show recent base model changes.'
+						'Loads the model list only at startup and when settings are saved. Faster, but new models only appear after a refresh.'
 					)}
 					let:labelId
 				>
-					<div class="flex items-center gap-1.5">
+					<div class="flex items-center gap-2">
 						{#if connectionsConfig.ENABLE_BASE_MODELS_CACHE}
-							<Tooltip content={$i18n.t('Refresh')}>
-								<button
-									class="flex size-6 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-600 dark:hover:bg-white/5 dark:hover:text-gray-300"
-									type="button"
-									disabled={modelListRefreshing}
-									on:click={refreshModelListHandler}
-									aria-label={$i18n.t('Refresh')}
-								>
-									{#if modelListRefreshing}
-										<Spinner className="size-3.5" />
-									{:else}
-										<ArrowPath className="size-4" />
-									{/if}
-								</button>
-							</Tooltip>
+							<button
+								class="flex items-center gap-1 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+								type="button"
+								disabled={modelListRefreshing}
+								on:click={refreshModelListHandler}
+							>
+								{#if modelListRefreshing}
+									<Spinner className="size-3.5" />
+								{:else}
+									<ArrowPath className="size-3.5" />
+								{/if}
+								{$i18n.t('Refresh')}
+							</button>
 						{/if}
 
 						<Switch
@@ -428,7 +440,7 @@
 
 	<div class="flex justify-end pt-6 text-sm font-normal">
 		<button
-			class="px-3.5 py-1.5 text-sm font-normal bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full"
+			class="px-4 py-2 text-sm font-semibold bg-black hover:bg-gray-800 text-white dark:bg-white dark:text-black dark:hover:bg-gray-200 transition rounded-lg"
 			type="submit"
 		>
 			{$i18n.t('Save')}

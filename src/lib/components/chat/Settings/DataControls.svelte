@@ -137,7 +137,7 @@
 />
 
 <div id="tab-chats" class="flex flex-col h-full text-sm">
-	<h2 class="text-sm font-medium text-gray-900 dark:text-white mb-4">
+	<h2 class="text-base font-semibold text-gray-900 dark:text-white mb-4">
 		{$i18n.t('Data Controls')}
 	</h2>
 

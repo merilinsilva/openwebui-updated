@@ -58,7 +58,7 @@
 		<div class="flex w-full gap-2">
 			<div class="flex-1 relative">
 				<input
-					class=" outline-hidden w-full bg-transparent {pipeline ? 'pr-8' : ''}"
+					class="w-full truncate bg-transparent font-mono text-[0.8125rem] text-gray-900 outline-hidden dark:text-gray-100 {pipeline ? 'pr-20' : ''}"
 					placeholder={$i18n.t('API Base URL')}
 					bind:value={url}
 					autocomplete="off"
@@ -66,13 +66,13 @@
 				/>
 
 				{#if pipeline}
-					<div class=" absolute top-0.5 right-2.5">
+					<div class="absolute top-0 right-0 flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[0.625rem] text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
 						<Tooltip content="Pipelines">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
 								viewBox="0 0 24 24"
 								fill="currentColor"
-								class="size-4"
+								class="size-3"
 							>
 								<path
 									d="M11.644 1.59a.75.75 0 0 1 .712 0l9.75 5.25a.75.75 0 0 1 0 1.32l-9.75 5.25a.75.75 0 0 1-.712 0l-9.75-5.25a.75.75 0 0 1 0-1.32l9.75-5.25Z"
@@ -85,16 +85,24 @@
 								/>
 							</svg>
 						</Tooltip>
+						Pipelines
 					</div>
 				{/if}
 			</div>
 		</div>
 	</Tooltip>
 
+	{#if !(config?.enable ?? true)}
+		<span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+			{$i18n.t('Off')}
+		</span>
+	{/if}
+
 	<div class="flex gap-1 items-center">
 		<Tooltip content={$i18n.t('Configure')} className="self-start">
 			<button
-				class="self-center p-1 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-850 rounded-lg transition"
+				class="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+				aria-label={$i18n.t('Configure')}
 				on:click={() => {
 					showConfigModal = true;
 				}}

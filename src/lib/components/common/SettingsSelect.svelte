@@ -22,7 +22,7 @@
 		title={placeholder || undefined}
 		{required}
 		{disabled}
-		class="h-7 w-full max-w-full appearance-none truncate rounded-lg border border-gray-100/50 !bg-gray-50/40 ps-2.5 pe-8 text-left text-xs text-gray-700 outline-hidden transition-colors ![background-image:none] [appearance:none] [field-sizing:content] [-webkit-appearance:none] focus:border-blue-400 disabled:opacity-50 dark:border-white/[0.04] dark:!bg-white/[0.03] dark:text-gray-300 dark:focus:border-blue-500 {selectClassName}"
+		class="h-8 w-full max-w-full appearance-none truncate rounded-lg border border-gray-300 !bg-white ps-3 pe-8 text-left text-sm text-gray-800 outline-hidden transition-colors ![background-image:none] [appearance:none] [field-sizing:content] [-webkit-appearance:none] focus:border-gray-500 disabled:opacity-50 dark:border-gray-700 dark:!bg-gray-900 dark:text-gray-200 dark:focus:border-gray-500 {selectClassName}"
 		on:change
 	>
 		<slot />

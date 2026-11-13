@@ -349,6 +349,8 @@ type Document = {
 
 type Config = {
 	license_metadata: any;
+	// Upload limits sent by the server (used by the knowledge upload screens).
+	file?: { max_size?: number | null; max_count?: number | null };
 	status: boolean;
 	name: string;
 	version: string;

@@ -34,7 +34,7 @@
 	import AppNotification from '../icons/AppNotification.svelte';
 	import AdjustmentsHorizontal from '../icons/AdjustmentsHorizontal.svelte';
 	import ArchiveBox from '../icons/ArchiveBox.svelte';
-	import ChevronLeft from '../icons/ChevronLeft.svelte';
+	import XMark from '$lib/components/icons/XMark.svelte';
 	import Keyboard from '../icons/Keyboard.svelte';
 	import UsageIcon from '../icons/UsageIcon.svelte';
 	import AdminTabIcon from '$lib/components/admin/Settings/AdminTabIcon.svelte';
@@ -174,9 +174,9 @@
 	const shouldShowSettingGroup = (tabIds: string[], index: number) =>
 		index === 0 || settingGroupTitle(tabIds[index]) !== settingGroupTitle(tabIds[index - 1]);
 	const settingGroupHeadingClass = (first: boolean) =>
-		`hidden md:block shrink-0 text-[0.625rem] text-gray-400 dark:text-gray-600 px-2 ${
-			first ? 'mt-0.5' : 'mt-2'
-		} mb-0.5`;
+		`hidden md:block shrink-0 text-[0.6875rem] font-semibold tracking-wide uppercase text-gray-500 dark:text-gray-400 px-2 ${
+			first ? 'mt-1' : 'mt-3'
+		} mb-1`;
 
 	const allSettings: SettingsTab[] = [
 		{
@@ -895,10 +895,10 @@
 	};
 
 	const tabButtonClass = (active: boolean) =>
-		`flex items-center gap-1.5 h-7 px-2 md:w-full shrink-0 rounded-lg text-xs text-left transition-colors duration-75 ${
+		`flex items-center gap-2 h-8 px-2.5 md:w-full shrink-0 rounded-lg text-sm text-left transition-colors duration-75 ${
 			active
-				? 'font-medium text-gray-900 dark:text-white bg-gray-50 dark:bg-white/[0.04]'
-				: 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+				? 'font-medium text-red-700 bg-red-50 dark:text-red-300 dark:bg-red-950/40'
+				: 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100'
 		}`;
 
 	let selectedTab = 'general';
@@ -936,26 +936,31 @@
 <Modal
 	size="full"
 	containerClassName="p-4 sm:p-6 lg:p-8"
-	className="!w-[calc(100vw-2rem)] sm:!w-[calc(100vw-3rem)] lg:!w-[calc(100vw-4rem)] !max-w-[80rem] h-[min(max(54rem,80dvh),calc(100dvh-4rem))] max-h-[calc(100dvh-4rem)] flex flex-col md:flex-row bg-white dark:bg-gray-900 rounded-4xl overflow-hidden"
+	className="!w-[calc(100vw-2rem)] sm:!w-[calc(100vw-3rem)] !max-w-[68rem] h-[min(48rem,calc(100dvh-4rem))] max-h-[calc(100dvh-4rem)] flex flex-col md:flex-row bg-white dark:bg-gray-900 rounded-2xl overflow-hidden"
 	bind:show={modalShow}
 >
 	<nav
 		id="settings-tabs-container"
-		class="shrink-0 min-w-0 md:min-h-0 flex md:flex-col border-b md:border-b-0 md:border-r border-gray-100/30 dark:border-white/[0.02] md:w-[15rem]"
+		class="shrink-0 min-w-0 md:min-h-0 flex md:flex-col border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800 md:w-[15rem] md:bg-gray-50/60 dark:md:bg-white/[0.02]"
 	>
-		<button
-			class="flex items-center gap-1.5 h-7 px-2 m-1 md:mb-0 md:w-[calc(100%-0.5rem)] shrink-0 rounded-lg text-xs text-gray-400 dark:text-gray-600 hover:text-gray-700 dark:hover:text-gray-300 transition-colors duration-75"
-			type="button"
-			on:click={() => {
-				show = false;
-			}}
-		>
-			<ChevronLeft className="size-3" strokeWidth="2" />
-			<span>{$i18n.t('Back')}</span>
-		</button>
+		<div class="flex shrink-0 items-center justify-between gap-2 px-3 pt-3 pb-1 md:pb-2">
+			<h2 class="hidden text-base font-semibold text-gray-900 md:block dark:text-gray-100">
+				{$i18n.t('Settings')}
+			</h2>
+			<button
+				class="rounded-lg p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+				type="button"
+				aria-label={$i18n.t('Close')}
+				on:click={() => {
+					show = false;
+				}}
+			>
+				<XMark className="size-4" />
+			</button>
+		</div>
 
 		<div
-			class="hidden md:flex items-center gap-1.5 h-7 px-2 mx-1 mt-1 mb-0.5 shrink-0 rounded-lg text-xs bg-gray-50/70 dark:bg-white/[0.03]"
+			class="hidden md:flex items-center gap-2 h-8 px-2.5 mx-2 mb-1 shrink-0 rounded-lg border border-gray-300 bg-white text-gray-500 focus-within:border-gray-500 dark:border-gray-700 dark:bg-gray-900"
 		>
 			<div class="self-center rounded-l-xl bg-transparent">
 				<Search className="size-3.5" strokeWidth="1.5" />
@@ -963,7 +968,7 @@
 			<label class="sr-only" for="search-input-settings-modal">{$i18n.t('Search')}</label>
 			<input
 				data-settings-search
-				class="w-full text-xs bg-transparent py-1 outline-hidden dark:text-gray-300"
+				class="w-full text-sm bg-transparent py-1 outline-hidden text-gray-900 placeholder:text-gray-400 dark:text-gray-200"
 				bind:value={search}
 				id="search-input-settings-modal"
 				on:input={searchDebounceHandler}
@@ -972,10 +977,10 @@
 		</div>
 
 		<div
-			class="tabs scrollbar-none flex min-w-0 flex-1 min-h-0 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto md:flex-col p-1 pl-0 md:pl-1 gap-px"
+			class="tabs scrollbar-none flex min-w-0 flex-1 min-h-0 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto md:flex-col p-1 pl-0 md:px-2 gap-0.5"
 		>
 			<span
-				class="hidden md:block text-[0.625rem] text-gray-400 dark:text-gray-600 px-2 mt-1.5 mb-0.5"
+				class="hidden md:block text-[0.6875rem] font-semibold tracking-wide uppercase text-gray-500 dark:text-gray-400 px-2 mt-2 mb-1"
 			>
 				{$i18n.t('Personal')}
 			</span>
@@ -1167,9 +1172,9 @@
 
 			{#if $user?.role === 'admin' && filteredAdminSettings.length > 0}
 				<div
-					class="hidden md:block shrink-0 self-stretch h-px mx-1 my-2 bg-gray-100/40 dark:bg-white/[0.025]"
+					class="hidden md:block shrink-0 self-stretch h-px mx-1 my-2 bg-gray-200 dark:bg-gray-800"
 				></div>
-				<span class="hidden md:block text-[0.625rem] text-gray-400 dark:text-gray-600 px-2 mb-0.5">
+				<span class="hidden md:block text-[0.6875rem] font-semibold tracking-wide uppercase text-gray-500 dark:text-gray-400 px-2 mb-1">
 					{$i18n.t('Admin')}
 				</span>
 
@@ -1206,7 +1211,7 @@
 		</div>
 	</nav>
 
-	<div class="flex-1 min-w-0 min-h-0 p-4 md:px-5 flex flex-col">
+	<div class="flex-1 min-w-0 min-h-0 p-4 md:px-7 md:py-6 flex flex-col">
 		<div class="flex-1 min-h-0 overflow-hidden">
 			{#if selectedTab === 'general'}
 				<General

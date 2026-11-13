@@ -954,7 +954,7 @@
 										class="size-3.5 rounded border-gray-300"
 										checked={(info?.meta?.suggestion_prompts ?? null) !== null}
 										on:change={(e) => {
-											info.meta.suggestion_prompts = e.currentTarget.checked
+											(info.meta as any).suggestion_prompts = e.currentTarget.checked
 												? [{ content: '', title: ['', ''] }]
 												: null;
 										}}

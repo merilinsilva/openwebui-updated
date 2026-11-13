@@ -45,7 +45,7 @@
 
 <ManageOllamaModal bind:show={showManageModal} urlIdx={idx} />
 
-<div class="flex gap-1.5">
+<div class="flex items-center gap-1.5">
 	<Tooltip
 		className="w-full relative"
 		content={$i18n.t(`WebUI will make requests to "{{url}}/api/chat"`, {
@@ -60,29 +60,37 @@
 		{/if}
 
 		<input
-			class="w-full text-sm bg-transparent outline-hidden"
+			class="w-full truncate bg-transparent font-mono text-[0.8125rem] text-gray-900 outline-hidden dark:text-gray-100"
 			placeholder={$i18n.t('Enter URL (e.g. http://localhost:11434)')}
 			bind:value={url}
 			readonly={true}
 		/>
 	</Tooltip>
 
+	{#if !(config?.enable ?? true)}
+		<span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+			{$i18n.t('Off')}
+		</span>
+	{/if}
+
 	<div class="flex gap-1 items-center">
 		<Tooltip content={$i18n.t('Manage')} className="self-start">
 			<button
-				class="self-center p-1 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-850 rounded-lg transition"
+				class="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-100"
 				on:click={() => {
 					showManageModal = true;
 				}}
 				type="button"
+				aria-label={$i18n.t('Manage models')}
 			>
-				<Download />
+				<Download className="size-3.5" />
+				{$i18n.t('Models')}
 			</button>
 		</Tooltip>
 
 		<Tooltip content={$i18n.t('Configure')} className="self-start">
 			<button
-				class="self-center p-1 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-850 rounded-lg transition"
+				class="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-100"
 				on:click={() => {
 					showConfigModal = true;
 				}}

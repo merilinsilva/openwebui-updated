@@ -69,7 +69,8 @@
 	// "Used N memories": the server records which memories it added to this answer as a hidden
 	// status (ids only). Kept out of the normal status line and shown as a badge instead.
 	$: usedMemoryIds =
-		(message?.statusHistory ?? []).find((s) => s?.action === 'memory_context')?.memory_ids ?? [];
+		((message?.statusHistory ?? []).find((s) => s?.action === 'memory_context') as any)?.memory_ids ??
+		[];
 	$: visibleStatusHistory = (message?.statusHistory ?? []).filter(
 		(s) => s?.action !== 'memory_context'
 	);

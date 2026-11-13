@@ -47,6 +47,8 @@
 		file_count?: number;
 		write_access?: boolean;
 		meta?: any;
+		user_id?: string;
+		access_grants?: any[];
 		user?: {
 			name?: string;
 			email?: string;

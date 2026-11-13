@@ -184,8 +184,9 @@ export const watchFileProcessStatus = async (
 		for (const line of (value ?? '').split('\n')) {
 			if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
 			try {
-				last = JSON.parse(line.slice('data: '.length));
-				onEvent(last);
+				const event = JSON.parse(line.slice('data: '.length)) as FileProcessEvent;
+				last = event;
+				onEvent(event);
 			} catch {
 				// ignore partial lines
 			}

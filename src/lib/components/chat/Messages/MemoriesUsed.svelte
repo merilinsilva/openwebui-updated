@@ -15,7 +15,7 @@
 
 	onMount(async () => {
 		const all = (await getMemories(localStorage.token).catch(() => null)) ?? [];
-		const byId = new Map(all.map((m) => [m.id, m.content]));
+		const byId = new Map<string, string>(all.map((m: any) => [m.id, m.content]));
 		contents = memoryIds.map((id) => byId.get(id) ?? null);
 		loading = false;
 	});
