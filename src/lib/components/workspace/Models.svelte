@@ -475,6 +475,11 @@
 {#if loaded}
 	<ModelDeleteConfirmDialog
 		bind:show={showModelDeleteConfirm}
+		variant="danger"
+		title={$i18n.t('Delete model?')}
+		message={$i18n.t('This deletes "{{name}}" for everyone who uses it. This cannot be undone.', {
+			name: selectedModel?.name ?? ''
+		})}
 		on:confirm={() => {
 			deleteModelHandler(selectedModel);
 		}}

@@ -316,6 +316,8 @@
 
 <DeleteConfirmDialog
 	bind:show={showDeleteConfirmDialog}
+	variant="danger"
+	title={$i18n.t('Delete channel?')}
 	message={$i18n.t('Are you sure you want to delete this channel?')}
 	confirmLabel={$i18n.t('Delete')}
 	on:confirm={() => {

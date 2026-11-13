@@ -290,6 +290,12 @@
 {#if loaded}
 	<DeleteConfirmDialog
 		bind:show={showDeleteConfirm}
+		variant="danger"
+		title={$i18n.t('Delete knowledge base?')}
+		message={$i18n.t(
+			'This deletes "{{name}}" and all its documents. Models and folders that use it lose access. This cannot be undone.',
+			{ name: selectedItem?.name ?? '' }
+		)}
 		on:confirm={() => {
 			deleteHandler(selectedItem);
 		}}
