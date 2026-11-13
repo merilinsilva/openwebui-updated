@@ -80,6 +80,28 @@
 
 	export let pinModelHandler: (modelId: string) => void = () => {};
 
+	// CHOn: card layout with descriptions, badges, favourites and "Which model should I use?".
+	export let rich = false;
+	const RICH_ITEM_HEIGHT = 100; // keep in sync with RICH_ROW_HEIGHT in ModelItem.svelte
+	let showGuidance = false;
+
+	// "Recommended" = the admin's default model(s).
+	$: defaultModelIds = ($config?.default_models ?? '')
+		.split(',')
+		.map((id) => id.trim())
+		.filter(Boolean);
+
+	// Short purpose shown next to the selected model in the message box: its first tag.
+	$: purpose = (() => {
+		const m = selectedModel?.model;
+		const tags = m?.tags ?? m?.info?.meta?.tags ?? [];
+		const first = tags[0];
+		return typeof first === 'string' ? first : (first?.name ?? '');
+	})();
+
+	$: recommendedName =
+		items.find((i) => defaultModelIds.includes(i.value))?.label ?? items[0]?.label ?? '';
+
 	let show = false;
 	let triggerElement: HTMLElement | null = null;
 	let contentElement: HTMLElement | null = null;
@@ -928,7 +950,7 @@
 		deleteModelTarget = null;
 	};
 
-	const ITEM_HEIGHT = 32;
+	$: ITEM_HEIGHT = rich ? RICH_ITEM_HEIGHT : 32;
 	const OVERSCAN = 10;
 
 	let listScrollTop = 0;
@@ -1011,6 +1033,13 @@
 			}}
 		>
 			<span class="min-w-0 flex-1 truncate">{triggerLabel}</span>
+			{#if rich && purpose}
+				<span
+					class="ml-1.5 shrink-0 truncate rounded-full bg-gray-100 px-1.5 py-px text-[0.625rem] text-gray-600 max-w-[7rem] dark:bg-gray-800 dark:text-gray-300"
+				>
+					{purpose}
+				</span>
+			{/if}
 			<ChevronDown className="ml-1 size-2.5 shrink-0 self-center" strokeWidth="2.5" />
 		</div>
 	</button>
@@ -1024,7 +1053,7 @@
 			<div
 				bind:this={panelElement}
 				class="z-40 {className ??
-					'w-[20rem]'} max-w-[calc(100vw-1rem)] justify-start rounded-xl border border-gray-100 bg-white p-0.5 shadow-lg outline-hidden dark:border-gray-800 dark:bg-gray-850 dark:text-white flex flex-col overflow-hidden"
+					(rich ? 'w-[28rem]' : 'w-[20rem]')} max-w-[calc(100vw-1rem)] justify-start rounded-xl border border-gray-100 bg-white p-0.5 shadow-lg outline-hidden dark:border-gray-800 dark:bg-gray-850 dark:text-white flex flex-col overflow-hidden"
 				style={dropdownPosition.maxHeight ? `max-height: ${dropdownPosition.maxHeight}px;` : ''}
 				transition:flyAndScale
 			>
@@ -1158,8 +1187,8 @@
 						{:else}
 							<!-- svelte-ignore a11y-no-static-element-interactions -->
 							<div
-								class="min-h-0 flex-1 overflow-y-auto"
-								style="max-height: 18rem;"
+								class="min-h-0 flex-1 overflow-y-auto {rich ? 'px-1.5' : ''}"
+								style="max-height: {rich ? '26rem' : '18rem'};"
 								role="listbox"
 								aria-label={$i18n.t('Available models')}
 								bind:this={listContainer}
@@ -1182,6 +1211,8 @@
 										{selectionOnly}
 										{compareEnabled}
 										{selectedValues}
+										{rich}
+										recommended={defaultModelIds.includes(item.value)}
 										onClick={() => {
 											selectItem(item, index);
 										}}
@@ -1337,7 +1368,49 @@
 						{/each}
 					</div>
 
-					{#if showSetDefault}
+					{#if rich}
+						{#if showGuidance}
+							<div
+								class="mx-1.5 mt-1 shrink-0 rounded-lg bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+							>
+								{#if recommendedName}
+									{$i18n.t('Not sure? Start with {{model}}, it handles most everyday questions.', {
+										model: recommendedName
+									})}
+								{/if}
+								{$i18n.t(
+									'Pick another model when its description matches your task better, for example long documents or analysis.'
+								)}
+								{$i18n.t(
+									'Shared assistants are set up by colleagues for one specific job and already include the right knowledge.'
+								)}
+							</div>
+						{/if}
+						<div class="flex shrink-0 items-center justify-between gap-3 px-3 py-2 text-xs text-gray-500">
+							<span title={$i18n.t('Favourites also appear at the top of the sidebar.')}>
+								★ {$i18n.t('Pin favourites')}
+							</span>
+							<div class="flex items-center gap-3">
+								{#if showSetDefault}
+									<button
+										type="button"
+										class="focus-ring underline-offset-2 hover:text-gray-800 hover:underline dark:hover:text-gray-200"
+										on:click|stopPropagation={setDefaultHandler}
+									>
+										{$i18n.t('Set as default')}
+									</button>
+								{/if}
+								<button
+									type="button"
+									class="focus-ring text-gray-700 underline underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+									aria-expanded={showGuidance}
+									on:click|stopPropagation={() => (showGuidance = !showGuidance)}
+								>
+									{$i18n.t('Which model should I use?')}
+								</button>
+							</div>
+						</div>
+					{:else if showSetDefault}
 						<div class="flex shrink-0 items-center justify-end px-2 py-1 leading-none">
 							<button
 								type="button"

@@ -16,6 +16,8 @@
 	export let className = undefined;
 	export let placement: 'top' | 'bottom' | 'auto' = 'bottom';
 	export let align: 'start' | 'end' = 'start';
+	// CHOn card layout (used in the chat message box).
+	export let rich = false;
 
 	let compareModels = selectedModels.length > 1;
 	let selector;
@@ -78,6 +80,7 @@
 					{placement}
 					{align}
 					{showSetDefault}
+					{rich}
 					onSetDefault={saveDefaultModel}
 					multipleEnabled={$user?.role === 'admin' ||
 						($user?.permissions?.chat?.multiple_models ?? true)}
