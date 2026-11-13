@@ -28,6 +28,8 @@
 		toggleSkillById
 	} from '$lib/apis/skills';
 	import { capitalizeFirstLetter, parseFrontmatter, formatSkillName, slugify } from '$lib/utils';
+	import { getGroups } from '$lib/apis/groups';
+	import { getOwnership, ownershipToneClass } from '$lib/utils/ownership';
 	import TagInput from '$lib/components/common/Tags/TagInput.svelte';
 
 	import Tooltip from '../common/Tooltip.svelte';
@@ -38,13 +40,9 @@
 	import Search from '../icons/Search.svelte';
 	import XMark from '../icons/XMark.svelte';
 	import Spinner from '../common/Spinner.svelte';
-	import ViewSelector from './common/ViewSelector.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
 	import Switch from '../common/Switch.svelte';
 	import SkillMenu from './Skills/SkillMenu.svelte';
 	import Pagination from '../common/Pagination.svelte';
-	import ChevronDown from '../icons/ChevronDown.svelte';
-	import ChevronUp from '../icons/ChevronUp.svelte';
 
 	let shiftKey = false;
 	let loaded = false;
@@ -62,7 +60,6 @@
 	let total = null;
 	let loading = false;
 
-	let tagsContainerElement: HTMLDivElement;
 	let viewOption = '';
 	let sortKey = 'updated_at';
 	let sortDirection = 'desc';
@@ -155,22 +152,59 @@
 		loadSkillItems();
 	}
 
-	const setSortKey = (key: string) => {
-		if (sortKey === key) {
-			sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-		} else {
-			sortKey = key;
-			sortDirection = key === 'updated_at' ? 'desc' : 'asc';
-		}
+
+	// Sharing badge per card ("Weidmann", team name, "Mine").
+	let groupNames: Record<string, string> = {};
+	getGroups(localStorage.token)
+		.then((groups) => {
+			groupNames = Object.fromEntries((groups ?? []).map((g) => [g.id, g.name]));
+		})
+		.catch(() => {});
+
+	// Filter chips (same values as the old view selector).
+	$: viewChips = [
+		{ value: '', label: $i18n.t('All') },
+		{ value: 'created', label: $i18n.t('Created by me') },
+		{ value: 'shared', label: $i18n.t('Shared with me') }
+	];
+
+	const setViewOption = (value: string) => {
+		viewOption = value;
+		localStorage.workspaceViewOption = value;
+		page = 1;
 	};
+
+	const setSort = (value: string) => {
+		const [key, dir] = value.split(':');
+		sortKey = key;
+		sortDirection = dir;
+		page = 1;
+	};
+
+	$: isFiltered = query.trim() !== '' || viewOption !== '';
+
+	const ownerOf = (item) => {
+		if (item?.user_id && item.user_id === $user?.id) return $i18n.t('owned by you');
+		const name = item?.user?.name ?? item?.user?.email;
+		return name
+			? $i18n.t('owned by {{name}}', { name: capitalizeFirstLetter(name) })
+			: $i18n.t('Deleted User');
+	};
+
+	const chipClass = (active: boolean) =>
+		`shrink-0 rounded-full border px-3 py-1 text-xs transition ${
+			active
+				? 'border-red-500 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/40 dark:text-red-300'
+				: 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-850'
+		}`;
+
+	const selectClass =
+		'rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 outline-hidden focus:border-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:scheme-dark';
 
 	const openSkill = (skill) => {
 		goto(`/workspace/skills/edit?id=${encodeURIComponent(skill.id)}`);
 	};
 
-	const shouldIgnoreRowClick = (target: EventTarget | null) => {
-		return target instanceof Element && !!target.closest('button, a, input, [role="menu"]');
-	};
 
 	const cloneHandler = async (skill) => {
 		const _skill = await getSkillById(localStorage.token, skill.id).catch((error) => {
@@ -330,282 +364,210 @@
 		}}
 	/>
 
-	<div class="space-y-1">
-		<div class="flex h-8 w-full items-center gap-2">
-			<div class="flex min-w-0 flex-1">
-				<div class=" self-center ml-1 mr-3">
-					<Search className="size-3.5" />
-				</div>
-				<input
-					class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
-					bind:value={query}
-					on:input={handleSearchInput}
-					aria-label={$i18n.t('Search Skills')}
-					placeholder={$i18n.t('Search Skills')}
-				/>
-				{#if query}
-					<div class="self-center pl-1.5 translate-y-[0.5px] rounded-l-xl bg-transparent">
-						<button
-							class="p-0.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-900 transition"
-							aria-label={$i18n.t('Clear search')}
-							on:click={() => {
-								query = '';
-								handleSearchInput();
-							}}
-						>
-							<XMark className="size-3" strokeWidth="2" />
-						</button>
-					</div>
-				{/if}
-			</div>
-
-			<div
-				class="flex max-w-[55%] shrink-0 overflow-x-auto scrollbar-none"
-				bind:this={tagsContainerElement}
-				on:wheel={(e) => {
-					if (e.deltaY !== 0) {
-						e.preventDefault();
-						e.currentTarget.scrollLeft += e.deltaY;
-					}
-				}}
-			>
-				<div
-					class="flex w-fit gap-0.5 text-center text-sm rounded-full bg-transparent whitespace-nowrap"
+	<!-- Breathing room below the workspace tabs / Create button (layout only adds pb-1). -->
+	<div class="flex flex-col gap-4 pt-5 text-gray-900 dark:text-gray-100">
+		<label
+			class="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 focus-within:border-gray-500 dark:border-gray-700 dark:focus-within:border-gray-500"
+		>
+			<Search className="size-3.5 shrink-0 text-gray-500" />
+			<input
+				class="w-full bg-transparent text-sm outline-hidden placeholder:text-gray-400"
+				bind:value={query}
+				on:input={handleSearchInput}
+				aria-label={$i18n.t('Search Skills')}
+				placeholder={$i18n.t('Search skills, e.g. "document formatting"')}
+			/>
+			{#if query}
+				<button
+					type="button"
+					class="rounded-full p-0.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+					aria-label={$i18n.t('Clear search')}
+					on:click={() => {
+						query = '';
+						handleSearchInput();
+					}}
 				>
-					<ViewSelector
-						bind:value={viewOption}
-						align="end"
-						onChange={async (value) => {
-							localStorage.workspaceViewOption = value;
-							page = 1;
-							await tick();
-						}}
-					/>
-				</div>
-			</div>
+					<XMark className="size-3" strokeWidth="2" />
+				</button>
+			{/if}
+		</label>
+
+		<div class="flex flex-wrap items-center gap-1.5">
+			{#each viewChips as chip (chip.value)}
+				<button
+					type="button"
+					class={chipClass(viewOption === chip.value)}
+					aria-pressed={viewOption === chip.value}
+					on:click={() => setViewOption(chip.value)}
+				>
+					{chip.label}
+				</button>
+			{/each}
+
+			<label class="ml-auto flex items-center gap-1.5 text-xs text-gray-500">
+				{$i18n.t('Sort')}
+				<select
+					class={selectClass}
+					value={`${sortKey}:${sortDirection}`}
+					on:change={(e) => setSort(e.currentTarget.value)}
+				>
+					<option value="updated_at:desc">{$i18n.t('Recently updated')}</option>
+					<option value="name:asc">{$i18n.t('Name (A–Z)')}</option>
+					<option value="name:desc">{$i18n.t('Name (Z–A)')}</option>
+					<option value="updated_at:asc">{$i18n.t('Oldest first')}</option>
+				</select>
+			</label>
 		</div>
 
 		{#if filteredItems === null || loading}
-			<div class="w-full h-full flex justify-center items-center my-16 mb-24">
+			<div class="flex w-full items-center justify-center py-10">
 				<Spinner className="size-5" />
 			</div>
 		{:else if (filteredItems ?? []).length !== 0}
-			<div class="my-1">
-				<div
-					class="flex w-full items-center gap-2 px-1.5 pb-0.5 text-xs text-gray-400 dark:text-gray-600"
-				>
-					<button
-						class="flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left"
-						type="button"
-						on:click={() => setSortKey('name')}
-					>
-						{$i18n.t('Title')}
-						{#if sortKey === 'name'}
-							{#if sortDirection === 'asc'}
-								<ChevronUp className="size-2" />
-							{:else}
-								<ChevronDown className="size-2" />
-							{/if}
-						{/if}
-					</button>
-
-					<div class="hidden w-44 shrink-0 md:block"></div>
-
-					<button
-						class="flex w-36 shrink-0 items-center justify-end gap-1 py-0.5 text-right"
-						type="button"
-						on:click={() => setSortKey('updated_at')}
-					>
-						{$i18n.t('Updated at')}
-						{#if sortKey === 'updated_at'}
-							{#if sortDirection === 'asc'}
-								<ChevronUp className="size-2" />
-							{:else}
-								<ChevronDown className="size-2" />
-							{/if}
-						{/if}
-					</button>
-				</div>
-
-				<div class="grid gap-y-0.5">
-					{#each filteredItems as skill (skill.id)}
-						<div
-							class="group flex min-h-8 w-full cursor-pointer items-center gap-2 overflow-hidden rounded-xl px-2 py-1 text-left"
-							role="button"
-							tabindex="0"
-							on:click={(e) => {
-								if (shouldIgnoreRowClick(e.target)) return;
-								openSkill(skill);
-							}}
-							on:keydown={(e) => {
-								if (e.currentTarget !== e.target) return;
-								if (e.key === 'Enter' || e.key === ' ') {
-									e.preventDefault();
-									openSkill(skill);
-								}
-							}}
+			<ul class="grid gap-2.5 md:grid-cols-2">
+				{#each filteredItems as skill (skill.id)}
+					{@const own = getOwnership(skill, $user?.id, groupNames, (k, o) => $i18n.t(k, o))}
+					{@const enabled = skill.is_active !== false}
+					<li class="group relative">
+						<button
+							type="button"
+							class="flex h-full w-full flex-col rounded-xl border border-gray-200 px-4 py-3 text-left transition hover:border-gray-400 hover:bg-gray-50 focus-visible:border-gray-500 dark:border-gray-800 dark:hover:border-gray-600 dark:hover:bg-gray-850 {enabled
+								? ''
+								: 'opacity-60'}"
+							on:click={() => openSkill(skill)}
 						>
-							<div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-								<div class="flex min-w-0 flex-1 flex-col overflow-hidden">
-									<div class="flex min-w-0 items-center gap-2 overflow-hidden">
-										<div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-											<Tooltip content={skill.id} className="min-w-0" placement="top-start">
-												<div
-													class="truncate text-[0.8125rem] leading-5 text-gray-800 group-hover:underline dark:text-gray-200"
-												>
-													{skill.name}
-												</div>
-											</Tooltip>
+							<div class="flex w-full items-center gap-2 {skill.write_access ? 'pr-8' : ''}">
+								<span class="min-w-0 flex-1 truncate text-sm font-semibold">{skill.name}</span>
+								<span
+									class="max-w-[45%] shrink-0 truncate rounded-full px-2 py-0.5 text-[0.6875rem] {ownershipToneClass(
+										own.tone
+									)}"
+									title={own.description}
+								>
+									{own.label}
+								</span>
+							</div>
 
-											<div
-												class="min-w-0 max-w-[40%] shrink-0 truncate text-[0.6875rem] leading-5 text-gray-500"
-											>
-												/{skill.id}
-											</div>
-
-											<Tooltip
-												content={dayjs((skill.updated_at ?? skill.created_at) * 1000).format(
-													'LLLL'
-												)}
-											>
-												<div
-													class="shrink-0 truncate text-[0.6875rem] leading-5 text-gray-400 dark:text-gray-600"
-												>
-													{dayjs((skill.updated_at ?? skill.created_at) * 1000).fromNow()}
-												</div>
-											</Tooltip>
-
-											{#if !skill.is_active}
-												<Badge type="muted" content={$i18n.t('Inactive')} />
-											{/if}
-
-											{#if !skill.write_access}
-												<Badge type="muted" content={$i18n.t('Read Only')} />
-											{/if}
-										</div>
-									</div>
-
-									{#if skill.description}
-										<Tooltip content={skill.description} className="min-w-0" placement="top-start">
-											<div
-												class="mt-0.5 truncate text-[0.6875rem] leading-4 text-gray-400 dark:text-gray-600"
-											>
-												{skill.description}
-											</div>
-										</Tooltip>
-									{/if}
-								</div>
+							<div class="mt-1 line-clamp-2 min-h-[2rem] text-xs text-gray-600 dark:text-gray-400">
+								{skill.description || $i18n.t('No description')}
 							</div>
 
 							<div
-								class="hidden max-w-44 shrink-0 self-center truncate text-right text-[0.6875rem] leading-5 text-gray-500 dark:text-gray-500 md:block"
+								class="mt-2 flex w-full flex-wrap items-center gap-x-1.5 gap-y-1 {skill.write_access
+									? 'pr-12'
+									: ''} text-[0.6875rem] text-gray-500"
 							>
-								<Tooltip
-									content={skill?.user?.email ?? $i18n.t('Deleted User')}
-									className="min-w-0"
-									placement="top-start"
-								>
-									<div class="truncate">
-										{capitalizeFirstLetter(
-											skill?.user?.name ?? skill?.user?.email ?? $i18n.t('Deleted User')
-										)}
-									</div>
-								</Tooltip>
+								<span class="font-mono">{skill.id}</span>
+								<span aria-hidden="true">·</span>
+								<span title={dayjs((skill.updated_at ?? skill.created_at) * 1000).format('LLLL')}>
+									{$i18n.t('updated {{time}}', {
+										time: dayjs((skill.updated_at ?? skill.created_at) * 1000).fromNow()
+									})}
+								</span>
+								<span aria-hidden="true">·</span>
+								<span class="truncate" title={skill?.user?.email ?? ''}>{ownerOf(skill)}</span>
+								{#if !skill.write_access}
+									<span aria-hidden="true">·</span>
+									<span>{$i18n.t('Read Only')}</span>
+								{/if}
+								{#if !enabled}
+									<span aria-hidden="true">·</span>
+									<span>{$i18n.t('Disabled')}</span>
+								{/if}
+							</div>
+						</button>
+
+						{#if skill.write_access}
+							<!-- Card actions sit outside the card button (no nested buttons). -->
+							<div class="absolute top-2 right-2">
+								{#if shiftKey}
+									<Tooltip content={$i18n.t('Delete')}>
+										<button
+											class="flex size-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-800"
+											type="button"
+											aria-label={$i18n.t('Delete')}
+											on:click={() => deleteHandler(skill)}
+										>
+											<GarbageBin className="size-4" />
+										</button>
+									</Tooltip>
+								{:else}
+									<SkillMenu
+										show={openSkillMenuId === skill.id}
+										editHandler={() => {
+											goto(`/workspace/skills/edit?id=${encodeURIComponent(skill.id)}`);
+										}}
+										cloneHandler={() => {
+											cloneHandler(skill);
+										}}
+										exportHandler={() => {
+											exportHandler(skill);
+										}}
+										deleteHandler={async () => {
+											selectedSkill = skill;
+											showDeleteConfirm = true;
+										}}
+										onClose={() => {
+											openSkillMenuId = null;
+										}}
+									>
+										<button
+											class="flex size-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+											type="button"
+											aria-label={$i18n.t('Skill Menu')}
+											on:click={() => {
+												openSkillMenuId = openSkillMenuId === skill.id ? null : skill.id;
+											}}
+										>
+											<EllipsisHorizontal className="size-4" />
+										</button>
+									</SkillMenu>
+								{/if}
 							</div>
 
-							{#if skill.write_access}
-								<div class="ml-2 flex shrink-0 flex-row items-center self-center">
-									{#if shiftKey}
-										<Tooltip content={$i18n.t('Delete')}>
-											<button
-												class="flex size-6 items-center justify-center rounded-lg text-gray-400 transition dark:text-gray-500"
-												type="button"
-												aria-label={$i18n.t('Delete')}
-												on:click={(e) => {
-													e.preventDefault();
-													e.stopPropagation();
-													deleteHandler(skill);
-												}}
-											>
-												<GarbageBin className="size-4" />
-											</button>
-										</Tooltip>
-									{:else}
-										<div class="flex shrink-0 flex-row items-center gap-1.5 self-center">
-											<SkillMenu
-												show={openSkillMenuId === skill.id}
-												editHandler={() => {
-													goto(`/workspace/skills/edit?id=${encodeURIComponent(skill.id)}`);
-												}}
-												cloneHandler={() => {
-													cloneHandler(skill);
-												}}
-												exportHandler={() => {
-													exportHandler(skill);
-												}}
-												deleteHandler={async () => {
-													selectedSkill = skill;
-													showDeleteConfirm = true;
-												}}
-												onClose={() => {
-													openSkillMenuId = null;
-												}}
-											>
-												<button
-													class="flex size-6 items-center justify-center rounded-lg text-gray-400 transition dark:text-gray-500"
-													type="button"
-													aria-label={$i18n.t('Skill Menu')}
-													on:click={(e) => {
-														e.preventDefault();
-														e.stopPropagation();
-														openSkillMenuId = openSkillMenuId === skill.id ? null : skill.id;
-													}}
-												>
-													<EllipsisHorizontal className="size-4" />
-												</button>
-											</SkillMenu>
-
-											<button
-												class="flex h-6 items-center"
-												type="button"
-												on:click={(e) => {
-													e.stopPropagation();
-													e.preventDefault();
-												}}
-											>
-												<Tooltip
-													content={skill.is_active ? $i18n.t('Enabled') : $i18n.t('Disabled')}
-												>
-													<Switch
-														bind:state={skill.is_active}
-														on:change={async () => {
-															toggleSkillById(localStorage.token, skill.id);
-														}}
-													/>
-												</Tooltip>
-											</button>
-										</div>
-									{/if}
-								</div>
-							{/if}
-						</div>
-					{/each}
-				</div>
-			</div>
+							<div class="absolute right-3 bottom-3">
+								<Tooltip content={enabled ? $i18n.t('Enabled') : $i18n.t('Disabled')}>
+									<Switch
+										bind:state={skill.is_active}
+										on:change={async () => {
+											toggleSkillById(localStorage.token, skill.id);
+										}}
+									/>
+								</Tooltip>
+							</div>
+						{/if}
+					</li>
+				{/each}
+			</ul>
 
 			{#if total > 30}
-				<div class="flex justify-center mt-4 mb-2">
+				<div class="flex justify-center">
 					<Pagination bind:page count={total} perPage={30} />
 				</div>
 			{/if}
-		{:else}
-			<div class="flex w-full flex-col items-center justify-center py-16 pb-24">
-				<div class="max-w-sm text-center text-gray-900 dark:text-gray-100">
-					<div class="mb-1.5 text-sm">{$i18n.t('No skills found')}</div>
-					<div class="text-center text-xs leading-5 text-gray-500">
-						{$i18n.t('Try adjusting your search or filter to find what you are looking for.')}
-					</div>
+		{:else if isFiltered}
+			<div class="py-16 text-center">
+				<div class="text-sm">{$i18n.t('Nothing matches your search')}</div>
+				<div class="mt-1 text-xs text-gray-500">
+					{$i18n.t('Try another word, or switch the filter back to All.')}
 				</div>
+			</div>
+		{:else}
+			<div class="mx-auto flex max-w-sm flex-col items-center py-16 text-center">
+				<div class="text-base font-semibold">{$i18n.t('No skills yet')}</div>
+				<p class="mt-1 text-sm text-gray-500">
+					{$i18n.t(
+						'A skill is a set of instructions CHOn follows for a specific job, e.g. formatting documents in the Weidmann style.'
+					)}
+				</p>
+				{#if $user?.role === 'admin' || $user?.permissions?.workspace?.skills}
+					<a
+						href="/workspace/skills/create"
+						class="mt-4 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+					>
+						+ {$i18n.t('New skill')}
+					</a>
+				{/if}
 			</div>
 		{/if}
 	</div>

@@ -68,9 +68,9 @@
 		}}
 	>
 		<div
-			class="flex min-w-0 items-center bg-transparent text-xs text-gray-500 outline-hidden hover:underline dark:text-gray-400"
+			class="flex min-w-0 shrink-0 items-center rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-800 outline-hidden transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
 		>
-			<span class="truncate">{triggerLabel || placeholder}</span>
+			<span class="truncate">+ {triggerLabel || placeholder}</span>
 		</div>
 
 		<div slot="content">

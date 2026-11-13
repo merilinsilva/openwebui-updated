@@ -171,12 +171,13 @@
 
 <div>
 	<div class="mb-2">
-		<div class="flex w-full items-center gap-2 mb-1">
+		<div class="flex w-full items-start justify-between gap-3">
 			<div class="min-w-0">
 				<slot name="label">
-					<div class=" self-center text-xs text-gray-500">
-						{$i18n.t('Knowledge')}
-					</div>
+					<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">{$i18n.t('Knowledge')}</div>
+					<p class="text-xs text-gray-500">
+						{$i18n.t('Knowledge bases and files the model searches in every chat.')}
+					</p>
 				</slot>
 			</div>
 
@@ -198,23 +199,23 @@
 							}}
 						>
 							<div
-								class="flex min-w-0 items-center bg-transparent text-xs text-gray-500 outline-hidden hover:underline dark:text-gray-400"
+								class="flex min-w-0 items-center rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-800 outline-hidden transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
 							>
-								<span class="truncate">{$i18n.t('Select Knowledge')}</span>
+								<span class="truncate">+ {$i18n.t('Add knowledge')}</span>
 							</div>
 						</KnowledgeSelector>
 					</div>
 
 					{#if $user?.role === 'admin' || $user?.permissions?.chat?.file_upload}
 						<button
-							class="self-center bg-transparent text-xs text-gray-500 hover:underline dark:text-gray-400"
+							class="flex min-w-0 items-center rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-800 outline-hidden transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
 							type="button"
 							aria-label={$i18n.t('Upload Files')}
 							on:click={() => {
 								filesInputElement.click();
 							}}
 						>
-							{$i18n.t('Upload')}
+							↑ {$i18n.t('Upload files')}
 						</button>
 					{/if}
 				</div>
@@ -228,7 +229,7 @@
 				{#each selectedItems as file, fileIdx}
 					<Tooltip content={file.description || file.name || file.id}>
 						<div
-							class="flex max-w-56 items-center gap-1.5 py-0.5 pr-2 text-xs text-gray-700 dark:text-gray-200"
+							class="flex max-w-56 items-center gap-1.5 rounded-full border border-gray-300 py-0.5 pr-1 pl-2.5 text-xs text-gray-800 dark:border-gray-700 dark:text-gray-200"
 						>
 							<button
 								type="button"
@@ -268,7 +269,7 @@
 
 							<button
 								type="button"
-								class="flex size-4 shrink-0 items-center justify-center text-gray-400 dark:text-gray-500"
+								class="flex shrink-0 items-center justify-center rounded-full p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 								aria-label={$i18n.t('Remove File')}
 								on:click={() => {
 									selectedItems = selectedItems.filter((_, idx) => idx !== fileIdx);
@@ -282,12 +283,12 @@
 
 				<button
 					type="button"
-					class="py-0.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+					class="text-xs text-gray-500 underline hover:text-gray-800 dark:hover:text-gray-200"
 					on:click={() => {
 						selectedItems = [];
 					}}
 				>
-					{$i18n.t('Disable all')}
+					{$i18n.t('Remove all')}
 				</button>
 			</div>
 		{/if}
@@ -295,7 +296,5 @@
 		<!-- {knowledge} -->
 	</div>
 
-	<div class=" text-xs dark:text-gray-700">
-		{$i18n.t('To attach knowledge base here, add them to the "Knowledge" workspace first.')}
-	</div>
+	
 </div>

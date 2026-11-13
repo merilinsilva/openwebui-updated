@@ -12,8 +12,6 @@
 	import CodeEditor from '$lib/components/common/CodeEditor.svelte';
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
-	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import AccessButton from '$lib/components/common/AccessButton.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import AccessControlModal from '../common/AccessControlModal.svelte';
 
@@ -191,6 +189,18 @@ class Tools:
 			saveHandler();
 		}
 	};
+
+	// CHOn form styles (same as the skill and prompt forms).
+	const fieldClass =
+		'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-hidden placeholder:text-gray-400 focus:border-gray-500 disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:focus:border-gray-500 dark:disabled:bg-white/[0.03]';
+
+	// One-line "who can use this" next to the save button.
+	$: accessSummary =
+		(accessGrants ?? []).length === 0
+			? $i18n.t('Only you can use this tool.')
+			: (accessGrants ?? []).some((g) => g.principal_id === '*')
+				? $i18n.t('Everyone at Weidmann can use this tool.')
+				: $i18n.t('Shared with selected people or teams.');
 </script>
 
 <AccessControlModal
@@ -212,10 +222,10 @@ class Tools:
 	}}
 />
 
-<div class="flex h-full w-full min-w-0 flex-col overflow-hidden">
+<div class="flex h-full w-full min-w-0 flex-col overflow-hidden text-gray-900 dark:text-gray-100">
 	<form
 		bind:this={formElement}
-		class="flex h-full min-h-0 min-w-0 flex-col"
+		class="mx-auto flex h-full min-h-0 w-full max-w-5xl min-w-0 flex-col"
 		on:submit|preventDefault={() => {
 			if (edit) {
 				submitHandler();
@@ -235,117 +245,122 @@ class Tools:
 			<span>{$i18n.t('Back')}</span>
 		</button>
 
-		<div class="flex shrink-0 items-start gap-2 pb-2 px-1">
-			<div class="min-w-0 flex-1">
-				<Tooltip content={$i18n.t('e.g. My Tools')} placement="top-start">
+		<h1 class="shrink-0 truncate pb-3 text-base font-semibold">
+			{edit ? name || $i18n.t('Edit tool') : $i18n.t('New tool')}
+		</h1>
+
+		<div class="flex min-h-0 flex-1 flex-col gap-4 px-0.5 pb-1">
+			<div class="grid shrink-0 gap-4 sm:grid-cols-2">
+				<div class="flex flex-col gap-1.5">
+					<label for="tool-name" class="text-sm font-semibold">{$i18n.t('Name')}</label>
 					<input
-						class="w-full bg-transparent text-sm outline-hidden"
+						id="tool-name"
+						class={fieldClass}
 						type="text"
-						placeholder={$i18n.t('Tool Name')}
-						aria-label={$i18n.t('Tool Name')}
+						placeholder={$i18n.t('e.g. SAP order lookup')}
 						bind:value={name}
 						required
 					/>
-				</Tooltip>
+				</div>
 
-				<div class="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-gray-500">
-					{#if edit}
-						<div class="shrink-0 truncate font-mono" title={id}>
-							{id}
-						</div>
-					{:else}
-						<Tooltip
-							className="min-w-[8rem] flex-1"
-							content={$i18n.t('e.g. my_tools')}
-							placement="top-start"
-						>
-							<input
-								class="w-full bg-transparent font-mono outline-hidden disabled:text-gray-500"
-								type="text"
-								placeholder={$i18n.t('Tool ID')}
-								aria-label={$i18n.t('Tool ID')}
-								bind:value={id}
-								required
-								disabled={edit}
-							/>
-						</Tooltip>
+				<div class="flex flex-col gap-1.5">
+					<label for="tool-id" class="text-sm font-semibold">{$i18n.t('Tool ID')}</label>
+					<input
+						id="tool-id"
+						class="{fieldClass} font-mono"
+						type="text"
+						placeholder={$i18n.t('e.g. sap_order_lookup')}
+						bind:value={id}
+						required
+						disabled={edit}
+					/>
+					{#if !edit}
+						<p class="text-xs text-gray-500">{$i18n.t('Cannot be changed later.')}</p>
 					{/if}
-
-					<Tooltip
-						className="flex min-w-0 flex-1 items-center"
-						content={$i18n.t('e.g. Tools for performing various operations')}
-						placement="top-start"
-					>
-						<input
-							class="w-full bg-transparent outline-hidden"
-							type="text"
-							placeholder={$i18n.t('Tool Description')}
-							aria-label={$i18n.t('Tool Description')}
-							bind:value={meta.description}
-							required
-						/>
-					</Tooltip>
 				</div>
 			</div>
 
-			<div class="flex shrink-0 items-center gap-1 pr-0.5">
-				<AccessButton
-					on:click={() => {
-						showAccessControlModal = true;
-					}}
+			<div class="flex shrink-0 flex-col gap-1.5">
+				<label for="tool-description" class="text-sm font-semibold">{$i18n.t('Description')}</label>
+				<input
+					id="tool-description"
+					class={fieldClass}
+					type="text"
+					placeholder={$i18n.t('e.g. Looks up order status and delivery dates in SAP')}
+					bind:value={meta.description}
+					required
 				/>
+				<p class="text-xs text-gray-500">
+					{$i18n.t('Shown in the tool list and when attaching tools to a model.')}
+				</p>
 			</div>
-		</div>
 
-		<div class="min-h-0 flex-1 overflow-hidden rounded-lg">
-			<CodeEditor
-				bind:this={codeEditor}
-				value={content}
-				lang="python"
-				{boilerplate}
-				className="text-[0.6875rem]"
-				onChange={(e) => {
-					_content = e;
-					if (!edit) {
-						const fm = extractFrontmatter(e);
-						if (fm.title && !name) {
-							name = formatSkillName(fm.title);
-							id = nameToId(fm.title);
-						}
-						if (fm.description && !meta.description) {
-							meta = { ...meta, description: fm.description };
-						}
-					}
-				}}
-				onSave={async () => {
-					if (formElement) {
-						formElement.requestSubmit();
-					}
-				}}
-			/>
-		</div>
+			<div
+				class="shrink-0 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+				role="note"
+			>
+				<span class="font-semibold">{$i18n.t('Tools run code on the server.')}</span>
+				{$i18n.t('Only install tools from sources you trust.')}
+			</div>
 
-		<div class="shrink-0 py-2 text-xs text-gray-500">
-			<div class="flex items-center justify-between gap-3">
-				<div class="min-w-0">
-					<span class="font-normal dark:text-gray-200">{$i18n.t('Warning:')}</span>
-					{$i18n.t('Tools can execute arbitrary code.')}
-					<span class="font-normal dark:text-gray-400">
-						{$i18n.t('Only install tools from sources you trust.')}
-					</span>
+			<div class="flex min-h-[16rem] flex-1 flex-col gap-1.5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="text-sm font-semibold">{$i18n.t('Code')}</div>
+					<div class="text-xs text-gray-500">{$i18n.t('Python · Ctrl+S to save')}</div>
 				</div>
-
-				<button
-					class="flex h-7 shrink-0 items-center gap-1.5 rounded-lg bg-gray-900 px-2.5 text-xs text-white transition hover:bg-black disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
-					type="submit"
-					disabled={loading}
+				<div
+					class="min-h-0 flex-1 overflow-hidden rounded-lg border border-gray-300 focus-within:border-gray-500 dark:border-gray-700 dark:focus-within:border-gray-500"
 				>
-					{$i18n.t(edit ? 'Save' : 'Save & Create')}
-					{#if loading}
-						<Spinner className="size-3" />
-					{/if}
-				</button>
+					<CodeEditor
+						bind:this={codeEditor}
+						value={content}
+						lang="python"
+						{boilerplate}
+						className="text-[0.6875rem]"
+						onChange={(e) => {
+							_content = e;
+							if (!edit) {
+								const fm = extractFrontmatter(e);
+								if (fm.title && !name) {
+									name = formatSkillName(fm.title);
+									id = nameToId(fm.title);
+								}
+								if (fm.description && !meta.description) {
+									meta = { ...meta, description: fm.description };
+								}
+							}
+						}}
+						onSave={async () => {
+							if (formElement) {
+								formElement.requestSubmit();
+							}
+						}}
+					/>
+				</div>
 			</div>
+		</div>
+
+		<div class="flex shrink-0 flex-wrap items-center justify-between gap-3 py-3">
+			<button
+				type="button"
+				class="flex min-w-0 items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+				title={$i18n.t('Change who can use this tool')}
+				on:click={() => (showAccessControlModal = true)}
+			>
+				<span class="truncate">{accessSummary}</span>
+				<span class="shrink-0 underline">{$i18n.t('Change')}</span>
+			</button>
+
+			<button
+				class="ml-auto flex items-center gap-1.5 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+				type="submit"
+				disabled={loading}
+			>
+				{edit ? $i18n.t('Save') : $i18n.t('Create tool')}
+				{#if loading}
+					<Spinner className="size-3" />
+				{/if}
+			</button>
 		</div>
 	</form>
 </div>

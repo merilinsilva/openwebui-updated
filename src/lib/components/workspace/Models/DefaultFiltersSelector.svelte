@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
-	import Checkbox from '$lib/components/common/Checkbox.svelte';
-	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import XMark from '$lib/components/icons/XMark.svelte';
 	import TypeaheadSelector from './TypeaheadSelector.svelte';
 
 	type Filter = {
@@ -27,8 +26,11 @@
 </script>
 
 <div>
-	<div class="flex w-full items-center gap-2 mb-1">
-		<div class=" self-center text-xs text-gray-500">{$i18n.t('Default Filters')}</div>
+	<div class="mb-2 flex w-full items-start justify-between gap-3">
+		<div class="min-w-0">
+			<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">{$i18n.t('On by default')}</div>
+			<p class="text-xs text-gray-500">{$i18n.t('Filters users can switch off in the chat, but which start switched on.')}</p>
+		</div>
 
 		{#if filters.length > 0}
 			<TypeaheadSelector
@@ -39,7 +41,7 @@
 				}))}
 				selectedIds={selectedFilterIds}
 				placeholder={$i18n.t('Search filters')}
-				triggerLabel={$i18n.t('Select Filter')}
+				triggerLabel={$i18n.t('Add filter')}
 				emptyLabel={$i18n.t('No filters found')}
 				variant="dropdown"
 				on:select={(e) => {
@@ -56,50 +58,39 @@
 
 	<div class="flex flex-col">
 		{#if filters.length > 0}
-			<div class=" flex items-center flex-wrap mt-1">
+			<div class="flex flex-wrap items-center gap-1.5">
 				{#each selectedFilters as filter (filter.id)}
-					{@const isSelected = selectedFilterIds.includes(filter.id)}
-					<div class=" flex items-center gap-2 mr-3">
-						<div class="self-center flex items-center">
-							<Checkbox
-								ariaLabel={filter.name}
-								state={isSelected ? 'checked' : 'unchecked'}
-								on:change={(e) => {
-									if (e.detail === 'checked') {
-										if (!selectedFilterIds.includes(filter.id)) {
-											selectedFilterIds = [...selectedFilterIds, filter.id];
-										}
-									} else {
-										selectedFilterIds = selectedFilterIds.filter((id) => id !== filter.id);
-									}
-								}}
-							/>
-						</div>
-
-						<div class=" py-0.5 text-xs capitalize">
-							<Tooltip content={filter.meta?.description ?? filter.id}>
-								{filter.name}
-							</Tooltip>
-						</div>
-					</div>
+					<span class="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-300 py-0.5 pr-1 pl-2.5 text-xs text-gray-800 dark:border-gray-700 dark:text-gray-200" title={filter.meta?.description ?? filter.id}>
+						<span class="truncate">{filter.name}</span>
+						<button
+							type="button"
+							class="rounded-full p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+							aria-label={$i18n.t('Remove {{name}}', { name: filter.name })}
+							on:click={() => {
+								selectedFilterIds = selectedFilterIds.filter((id) => id !== filter.id);
+							}}
+						>
+							<XMark className="size-3" />
+						</button>
+					</span>
 				{/each}
 
 				{#if selectedFilters.length > 0}
 					<button
 						type="button"
-						class="py-0.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+						class="text-xs text-gray-500 underline hover:text-gray-800 dark:hover:text-gray-200"
 						on:click={() => {
 							selectedFilterIds = [];
 						}}
 					>
-						{$i18n.t('Disable all')}
+						{$i18n.t('Remove all')}
 					</button>
 				{/if}
 			</div>
 		{/if}
 	</div>
 
-	<div class=" text-xs dark:text-gray-700">
-		{$i18n.t('To select default filters here, enable toggleable filters for this model first.')}
-	</div>
+	{#if filters.length === 0}
+		<div class="text-xs text-gray-500">{$i18n.t('Only filters that users can switch on and off can be on by default.')}</div>
+	{/if}
 </div>

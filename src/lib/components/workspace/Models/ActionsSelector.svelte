@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
-	import Checkbox from '$lib/components/common/Checkbox.svelte';
-	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import XMark from '$lib/components/icons/XMark.svelte';
 	import TypeaheadSelector from './TypeaheadSelector.svelte';
 
 	type Action = {
@@ -32,8 +31,11 @@
 
 {#if actions.length > 0}
 	<div>
-		<div class="flex w-full items-center gap-2 mb-1">
-			<div class=" self-center text-xs text-gray-500">{$i18n.t('Actions')}</div>
+		<div class="mb-2 flex w-full items-start justify-between gap-3">
+		<div class="min-w-0">
+			<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">{$i18n.t('Actions')}</div>
+			<p class="text-xs text-gray-500">{$i18n.t('Buttons shown under each answer, e.g. "Send to Outlook".')}</p>
+		</div>
 
 			{#if selectableActions.length > 0}
 				<TypeaheadSelector
@@ -44,7 +46,7 @@
 					}))}
 					selectedIds={selectedActionIds}
 					placeholder={$i18n.t('Search actions')}
-					triggerLabel={$i18n.t('Select Action')}
+					triggerLabel={$i18n.t('Add action')}
 					emptyLabel={$i18n.t('No actions found')}
 					variant="dropdown"
 					on:select={(e) => {
@@ -60,46 +62,41 @@
 		</div>
 
 		<div class="flex flex-col">
-			<div class=" flex items-center flex-wrap mt-1">
-				{#each selectedActions as action, actionIdx (action.id)}
-					<div class=" flex items-center gap-2 mr-3">
-						<div class="self-center flex items-center">
-							<Checkbox
-								ariaLabel={action.name}
-								state="checked"
-								disabled={action.is_global}
-								on:change={(e) => {
-									if (!action.is_global && e.detail === 'unchecked') {
-										selectedActionIds = selectedActionIds.filter((id) => id !== action.id);
-									}
+			<div class="flex flex-wrap items-center gap-1.5">
+				{#each selectedActions as action (action.id)}
+					<span class="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-300 py-0.5 pr-1 pl-2.5 text-xs text-gray-800 dark:border-gray-700 dark:text-gray-200 {action.is_global ? 'pr-2.5' : ''}" title={action.meta?.description ?? action.id}>
+						<span class="truncate">{action.name}</span>
+						{#if action.is_global}
+							<span class="text-gray-500">· {$i18n.t('always on')}</span>
+						{:else}
+							<button
+								type="button"
+								class="rounded-full p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+								aria-label={$i18n.t('Remove {{name}}', { name: action.name })}
+								on:click={() => {
+									selectedActionIds = selectedActionIds.filter((id) => id !== action.id);
 								}}
-							/>
-						</div>
-
-						<div class=" py-0.5 text-xs capitalize">
-							<Tooltip content={action.meta?.description ?? action.id}>
-								{action.name}
-							</Tooltip>
-						</div>
-					</div>
+							>
+								<XMark className="size-3" />
+							</button>
+						{/if}
+					</span>
 				{/each}
 
 				{#if selectedActionIds.length > 0}
 					<button
 						type="button"
-						class="py-0.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+						class="text-xs text-gray-500 underline hover:text-gray-800 dark:hover:text-gray-200"
 						on:click={() => {
 							selectedActionIds = [];
 						}}
 					>
-						{$i18n.t('Disable all')}
+						{$i18n.t('Remove all')}
 					</button>
 				{/if}
 			</div>
 		</div>
 
-		<div class=" text-xs dark:text-gray-700">
-			{$i18n.t('To select actions here, add them to the "Functions" workspace first.')}
-		</div>
+		
 	</div>
 {/if}
