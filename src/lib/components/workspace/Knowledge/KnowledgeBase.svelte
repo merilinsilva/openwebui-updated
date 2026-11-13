@@ -1306,6 +1306,8 @@
 <div class="flex flex-col w-full h-full min-h-full" id="collection-container">
 	{#if id && knowledge}
 		<AccessControlModal
+	itemName={knowledge?.name}
+	subtitle={fileItemsTotal !== null ? `${$i18n.t('Knowledge base')} · ${fileItemsTotal === 1 ? $i18n.t('1 document') : $i18n.t('{{COUNT}} documents', { COUNT: fileItemsTotal })}` : $i18n.t('Knowledge base')}
 			bind:show={showAccessControlModal}
 			bind:accessGrants={knowledge.access_grants}
 			share={$user?.permissions?.sharing?.knowledge || $user?.role === 'admin'}

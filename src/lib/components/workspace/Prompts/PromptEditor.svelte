@@ -300,6 +300,8 @@
 </script>
 
 <AccessControlModal
+	itemName={name}
+	subtitle={$i18n.t('Prompt')}
 	bind:show={showAccessControlModal}
 	bind:accessGrants
 	accessRoles={['read', 'write']}

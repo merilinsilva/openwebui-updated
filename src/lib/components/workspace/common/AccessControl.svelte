@@ -4,14 +4,10 @@
 	const i18n = getContext('i18n');
 
 	import { getGroups, getGroupById, getGroupInfoById } from '$lib/apis/groups';
-	import { getUserInfoById } from '$lib/apis/users';
+	import { getUserInfoById, searchUsers } from '$lib/apis/users';
+	import { user as sessionUser } from '$lib/stores';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import XMark from '$lib/components/icons/XMark.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
-	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
-	import Plus from '$lib/components/icons/Plus.svelte';
-	import AddAccessModal from './AddAccessModal.svelte';
-	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
 
 	type AccessGrant = {
@@ -44,7 +40,6 @@
 	let userById: Record<string, any> = {};
 	const resolvingUserIds = new Set<string>();
 
-	let showAddAccessModal = false;
 
 	const dedupeAccessGrants = (grants: AccessGrant[] | null | undefined): AccessGrant[] => {
 		if (!Array.isArray(grants)) return [];
@@ -465,240 +460,402 @@
 			(g, index, self) => index === self.findIndex((t) => t.id === g.id)
 		);
 	});
+
+	// ---- CHOn share layout ---------------------------------------------------------------
+	// Three levels: Only me / Specific persons / Everyone at Weidmann
+	// (+ "Anyone with the link" where Open WebUI allows it).
+	type Level = 'only_me' | 'specific' | 'everyone' | 'link';
+
+	const ORG_NAME = 'Weidmann';
+	const roleSelectClass =
+		'shrink-0 cursor-pointer rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs outline-hidden focus:border-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:scheme-dark';
+	const removeButtonClass =
+		'shrink-0 rounded-md p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200';
+
+	// Chosen "Specific" but nobody added yet.
+	let specificChosen = false;
+	// People/teams removed by switching to "Only me", restored if the user switches back.
+	let stashedPrincipalGrants: AccessGrant[] = [];
+
+	$: hasPrincipals =
+		readGroupIds.length + writeGroupIds.length + readUserIds.length + writeUserIds.length > 0;
+
+	$: visibility = getVisibility(accessGrants ?? []);
+	$: level = (
+		visibility === 'public'
+			? 'everyone'
+			: visibility === 'open'
+				? 'link'
+				: hasPrincipals || specificChosen
+					? 'specific'
+					: 'only_me'
+	) as Level;
+
+	const isPrincipalGrant = (g: AccessGrant) =>
+		(g.principal_type === 'user' || g.principal_type === 'group') && g.principal_id !== '*';
+
+	const setLevel = (next: Level) => {
+		if (next === level) return;
+		if (next === 'only_me') {
+			const principals = currentGrants().filter(isPrincipalGrant);
+			if (principals.length > 0) stashedPrincipalGrants = principals;
+			specificChosen = false;
+			commitAccessGrants([]);
+		} else if (next === 'specific') {
+			specificChosen = true;
+			let grants = currentGrants().filter(isPrincipalGrant);
+			if (grants.length === 0 && stashedPrincipalGrants.length > 0) {
+				grants = stashedPrincipalGrants;
+			}
+			commitAccessGrants(grants);
+		} else if (next === 'everyone') {
+			setVisibility('public');
+		} else if (next === 'link') {
+			setVisibility('open');
+		}
+	};
+
+	$: canSpecific = share && (shareUsers || allowGroups);
+	$: levelOptions = [
+		{
+			value: 'only_me' as Level,
+			label: $i18n.t('Only me'),
+			description: $i18n.t('Nobody else can see or use it.'),
+			disabled: false
+		},
+		{
+			value: 'specific' as Level,
+			label: $i18n.t('Specific persons'),
+			description: $i18n.t('Only the people and teams you add below.'),
+			disabled: !canSpecific,
+			disabledHint: $i18n.t('You do not have permission to share this.')
+		},
+		{
+			value: 'everyone' as Level,
+			label: $i18n.t('Everyone at {{org}}', { org: ORG_NAME }),
+			note: share && sharePublic ? '' : $i18n.t('needs approval'),
+			description: $i18n.t('Everyone at {{org}} can find and use it.', { org: ORG_NAME }),
+			// Keep it selectable if it already is public, so it can be read and changed back.
+			disabled: !(share && sharePublic) && visibility !== 'public',
+			disabledHint: $i18n.t('Ask the CHOn team to share it with everyone.')
+		},
+		...((share && shareOpen) || visibility === 'open'
+			? [
+					{
+						value: 'link' as Level,
+						label: $i18n.t('Anyone with the link'),
+						description: $i18n.t('Also people who are not signed in.'),
+						disabled: !(share && shareOpen) && visibility !== 'open'
+					}
+				]
+			: [])
+	];
+
+	const initials = (name: string) =>
+		(name ?? '')
+			.split(/\s+/)
+			.filter(Boolean)
+			.slice(0, 2)
+			.map((w) => w[0]?.toUpperCase() ?? '')
+			.join('') || '?';
+
+	// ---- Directory search (teams = synced Entra ID groups, plus people) ----------------------
+	type DirectoryResult = { kind: 'group' | 'user'; id: string; name: string; detail: string };
+
+	let searchInputElement: HTMLInputElement;
+	let directoryQuery = '';
+	let directoryUsers: any[] = [];
+	let directoryLoading = false;
+	let showDirectory = false;
+	let directoryTimer: ReturnType<typeof setTimeout>;
+
+	$: searchPlaceholder =
+		shareUsers && allowGroups
+			? $i18n.t('Add people or teams from the company directory…')
+			: allowGroups
+				? $i18n.t('Add teams…')
+				: $i18n.t('Add people from the company directory…');
+
+	const onDirectoryInput = () => {
+		showDirectory = true;
+		clearTimeout(directoryTimer);
+		if (!shareUsers || !directoryQuery.trim()) {
+			directoryUsers = [];
+			return;
+		}
+		directoryLoading = true;
+		directoryTimer = setTimeout(async () => {
+			const res = await searchUsers(localStorage.token, directoryQuery.trim(), 'name', 'asc', 1).catch(
+				() => null
+			);
+			directoryUsers = res?.users ?? [];
+			directoryLoading = false;
+		}, 250);
+	};
+
+	$: directoryResults = (() => {
+		const q = directoryQuery.trim().toLowerCase();
+		if (!q) return [] as DirectoryResult[];
+		const grantedGroups = new Set([...readGroupIds, ...writeGroupIds]);
+		const grantedUsers = new Set([...readUserIds, ...writeUserIds]);
+		const teamResults: DirectoryResult[] = allowGroups
+			? groups
+					.filter((g) => !grantedGroups.has(g.id) && (g.name ?? '').toLowerCase().includes(q))
+					.slice(0, 6)
+					.map((g) => ({
+						kind: 'group',
+						id: g.id,
+						name: g.name,
+						detail: $i18n.t('team, {{count}} people', { count: g?.member_count ?? 0 })
+					}))
+			: [];
+		const peopleResults: DirectoryResult[] = shareUsers
+			? directoryUsers
+					.filter((u) => !grantedUsers.has(u.id) && u.id !== $sessionUser?.id)
+					.slice(0, 8)
+					.map((u) => ({ kind: 'user', id: u.id, name: u.name ?? u.email, detail: u.email ?? '' }))
+			: [];
+		return [...teamResults, ...peopleResults];
+	})();
+
+	const pickPrincipal = (result: DirectoryResult) => {
+		if (result.kind === 'group') {
+			handleAddAccess({ userIds: [], groupIds: [result.id] });
+		} else {
+			userById = { ...userById, [result.id]: directoryUsers.find((u) => u.id === result.id) ?? userById[result.id] };
+			handleAddAccess({ userIds: [result.id], groupIds: [] });
+		}
+		specificChosen = true;
+		directoryQuery = '';
+		directoryUsers = [];
+		showDirectory = false;
+		searchInputElement?.focus();
+	};
 </script>
 
-<AddAccessModal
-	bind:show={showAddAccessModal}
-	{shareUsers}
-	{allowGroups}
-	{accessGrants}
-	onAdd={handleAddAccess}
-/>
+<div class="flex flex-col gap-3 text-gray-900 dark:text-gray-100">
+	<div>
+		<div class="mb-1.5 text-sm font-semibold">{$i18n.t('Who can use it')}</div>
 
-<div class="rounded-lg flex flex-col gap-1">
-	<div class="py-1.5">
-		<div class="flex gap-2 items-center">
-			<div>
-				<div class="p-2 bg-black/5 dark:bg-white/5 rounded-full">
-					{#if getVisibility(accessGrants ?? []) === 'private'}
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke-width="1.5"
-							stroke="currentColor"
-							class="size-5"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-							/>
-						</svg>
-					{:else}
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke-width="1.5"
-							stroke="currentColor"
-							class="size-5"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M6.115 5.19l.319 1.913A6 6 0 008.11 10.36L9.75 12l-.387.775c-.217.433-.132.956.21 1.298l1.348 1.348c.21.21.329.497.329.795v1.089c0 .426.24.815.622 1.006l.153.076c.433.217.956.132 1.298-.21l.723-.723a8.7 8.7 0 002.288-4.042 1.087 1.087 0 00-.358-1.099l-1.33-1.108c-.251-.21-.582-.299-.905-.245l-1.17.195a1.125 1.125 0 01-.98-.314l-.295-.295a1.125 1.125 0 010-1.591l.13-.132a1.125 1.125 0 011.3-.21l.603.302a.809.809 0 001.086-1.086L14.25 7.5l1.256-.837a4.5 4.5 0 001.528-1.732l.146-.292M6.115 5.19A9 9 0 1017.18 4.64M6.115 5.19A8.965 8.965 0 0112 3c1.929 0 3.716.607 5.18 1.64"
-							/>
-						</svg>
-					{/if}
-				</div>
-			</div>
-
-			<div>
-				<Tooltip
-					content={!(share && sharePublic) && getVisibility(accessGrants ?? []) === 'private'
-						? $i18n.t('You do not have permission to make this public')
-						: ''}
+		<div class="flex flex-col gap-1.5" role="radiogroup" aria-label={$i18n.t('Who can use it')}>
+			{#each levelOptions as option (option.value)}
+				<button
+					type="button"
+					role="radio"
+					aria-checked={level === option.value}
+					disabled={option.disabled}
+					title={option.disabled ? option.disabledHint : undefined}
+					class="flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed {level ===
+					option.value
+						? 'border-red-500 bg-red-50 dark:border-red-500 dark:bg-red-950/30'
+						: 'border-gray-300 hover:bg-gray-50 disabled:hover:bg-transparent dark:border-gray-700 dark:hover:bg-gray-850'}"
+					on:click={() => setLevel(option.value)}
 				>
-					<select
-						id="models"
-						class="outline-none bg-transparent text-sm font-normal block w-fit pr-8 max-w-full placeholder-gray-400"
-						value={getVisibility(accessGrants ?? [])}
-						on:change={(e) => {
-							setVisibility((e.target as HTMLSelectElement).value as 'private' | 'public' | 'open');
-						}}
+					<span
+						class="mt-1 flex size-3 shrink-0 items-center justify-center rounded-full border {level ===
+						option.value
+							? 'border-red-600 dark:border-red-400'
+							: 'border-gray-400'}"
+						aria-hidden="true"
 					>
-						<option class=" text-gray-700" value="private">{$i18n.t('Private')}</option>
-						{#if (share && sharePublic) || hasPublicReadGrant(accessGrants ?? [])}
-							<option class=" text-gray-700" value="public">{$i18n.t('Public')}</option>
+						{#if level === option.value}
+							<span class="size-1.5 rounded-full bg-red-600 dark:bg-red-400"></span>
 						{/if}
-						{#if (share && shareOpen) || hasAnyoneReadGrant(accessGrants ?? [])}
-							<option class=" text-gray-700" value="open">{$i18n.t('Open')}</option>
+					</span>
+					<span class="min-w-0">
+						<span class="font-semibold {option.disabled ? 'text-gray-400 dark:text-gray-600' : ''}">
+							{option.label}
+						</span>
+						{#if option.note}
+							<span class="text-gray-500">— {option.note}</span>
 						{/if}
-					</select>
-				</Tooltip>
-
-				<div class=" text-xs text-gray-400 font-normal">
-					{#if getVisibility(accessGrants ?? []) === 'private'}
-						{$i18n.t('Only select users and groups with permission can access')}
-					{:else if getVisibility(accessGrants ?? []) === 'public'}
-						{$i18n.t('Accessible to all users')}
-					{:else}
-						{$i18n.t('Anyone with the link can view')}
-					{/if}
-				</div>
-			</div>
+						{#if option.description && level === option.value}
+							<span class="block text-xs text-gray-500">{option.description}</span>
+						{/if}
+					</span>
+				</button>
+			{/each}
 		</div>
 
-		{#if hasPublicReadGrant(accessGrants ?? []) && !hasAnyoneReadGrant(accessGrants ?? []) && accessRoles.includes('write')}
-			<div class="flex w-full justify-between mt-1.5 ml-0.5">
-				<div class="self-center text-xs">
-					{$i18n.t('Allow public write access')}
-				</div>
-				<Switch
-					state={hasPublicWriteGrant(accessGrants ?? [])}
-					on:change={() => {
-						togglePublicWrite();
-					}}
-				/>
-			</div>
+		{#if !(share && sharePublic) && level !== 'everyone'}
+			<p class="mt-1.5 text-xs text-gray-500">
+				{$i18n.t('Sharing with everyone at Weidmann needs approval. Ask the CHOn team.')}
+			</p>
+		{/if}
+
+		{#if level === 'everyone' && accessRoles.includes('write')}
+			<label class="mt-2 flex items-center justify-between gap-3 text-sm">
+				<span>
+					{$i18n.t('Everyone can edit')}
+					<span class="block text-xs text-gray-500">
+						{$i18n.t('Otherwise everyone can use it, and only the people below can edit.')}
+					</span>
+				</span>
+				<Switch state={hasPublicWriteGrant(accessGrants ?? [])} on:change={() => togglePublicWrite()} />
+			</label>
 		{/if}
 	</div>
 
-	{#if share}
-		<div class="flex items-center justify-between text-xs font-normal text-gray-500 my-0.5">
-			<div>
-				{$i18n.t('Access List')}
-			</div>
-			<div class="flex gap-1">
-				<button
-					class="px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition text-xs font-normal flex items-center gap-1"
-					type="button"
-					on:click={() => {
-						showAddAccessModal = true;
-					}}
-				>
-					<Plus className="size-3" />
-					{$i18n.t('Add Access')}
-				</button>
-			</div>
-		</div>
-
-		<!-- List -->
-		<div class="flex flex-col gap-1">
-			<!-- Groups -->
-			{#each accessGroups as group}
-				<div class="flex items-center gap-2 justify-between text-sm w-full transition pb-1">
-					<div class="flex items-center gap-2 min-w-0 flex-1">
-						<!-- Placeholder for group icon vs user icon -->
-						<div
-							class="size-5 rounded-full bg-gray-100 dark:bg-gray-850 flex items-center justify-center text-xs"
-						>
-							{group.name.charAt(0).toUpperCase()}
-						</div>
-
-						<div class="truncate text-sm flex items-center gap-2">
-							{group.name}
-							<span class="text-xs text-gray-400 font-normal"
-								>{group?.member_count} {$i18n.t('members')}</span
-							>
-						</div>
-					</div>
-
-					<div class="flex justify-end items-center gap-1.5 shrink-0">
-						{#if accessRoles.includes('write')}
-							<select
-								aria-label={$i18n.t('Access level')}
-								class="bg-transparent text-sm outline-none"
-								value={writeGroupIds.includes(group.id) ? 'write' : 'read'}
-								on:change={(e) => {
-									if (
-										((e.target as HTMLSelectElement).value === 'write') !==
-										writeGroupIds.includes(group.id)
-									) {
-										togglePrincipalWrite('group', group.id);
-									}
-								}}
-							>
-								<option value="read">{$i18n.t('Read')}</option>
-								<option value="write">{$i18n.t('Write')}</option>
-							</select>
-						{:else}
-							<Badge type={'info'} content={$i18n.t('Read')} />
-						{/if}
-
-						<button
-							class="rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-850 transition"
-							type="button"
-							on:click={() => {
-								removePrincipal('group', group.id);
-							}}
-						>
-							<XMark className="size-4" />
-						</button>
-					</div>
+	{#if share && (level === 'specific' || (level === 'everyone' && hasPrincipals))}
+		<div class="flex flex-col gap-2">
+			{#if level === 'everyone'}
+				<div class="text-xs font-semibold text-gray-700 dark:text-gray-300">
+					{$i18n.t('People and teams with extra rights')}
 				</div>
-			{/each}
+			{/if}
 
-			<!-- Users -->
-			{#if shareUsers}
-				{#each selectedUsers as user}
+			<!-- Directory search: teams (synced Entra ID groups) and people -->
+			<div class="relative">
+				<input
+					bind:this={searchInputElement}
+					class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-hidden placeholder:text-gray-400 focus:border-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:focus:border-gray-500"
+					placeholder={searchPlaceholder}
+					aria-label={searchPlaceholder}
+					bind:value={directoryQuery}
+					on:input={onDirectoryInput}
+					on:focus={() => (showDirectory = true)}
+					on:blur={() => setTimeout(() => (showDirectory = false), 150)}
+					on:keydown={(e) => {
+						if (e.key === 'Enter') {
+							e.preventDefault();
+							const first = directoryResults[0];
+							if (first) pickPrincipal(first);
+						} else if (e.key === 'Escape') {
+							e.stopPropagation();
+							showDirectory = false;
+						}
+					}}
+				/>
+
+				{#if showDirectory && directoryQuery.trim()}
 					<div
-						class="flex items-center gap-2 justify-between text-sm w-full transition border-b border-gray-50 dark:border-gray-850 pb-1.5 last:border-0"
+						class="absolute top-full right-0 left-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-800 dark:bg-gray-900"
+						role="listbox"
 					>
-						<div class="flex items-center gap-2 min-w-0 flex-1">
-							<img
-								class="rounded-full size-5 object-cover"
-								src={`${WEBUI_API_BASE_URL}/users/${user.id}/profile/image`}
-								alt={user.name ?? user.id}
-							/>
-							<div class="min-w-0 flex-1">
-								<Tooltip content={user.email} placement="top-start">
-									<div class="truncate text-sm">{user.name ?? user.id}</div>
-								</Tooltip>
+						{#if directoryLoading && directoryResults.length === 0}
+							<div class="px-2 py-2 text-xs text-gray-500">{$i18n.t('Searching…')}</div>
+						{:else if directoryResults.length === 0}
+							<div class="px-2 py-2 text-xs text-gray-500">
+								{$i18n.t('No people or teams found')}
 							</div>
-						</div>
+						{:else}
+							{#each directoryResults as result (result.kind + result.id)}
+								<button
+									type="button"
+									role="option"
+									aria-selected="false"
+									class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+									on:mousedown|preventDefault={() => pickPrincipal(result)}
+								>
+									<span
+										class="flex size-7 shrink-0 items-center justify-center rounded-full bg-gray-700 text-[0.625rem] font-semibold text-white dark:bg-gray-300 dark:text-gray-900"
+									>
+										{initials(result.name)}
+									</span>
+									<span class="min-w-0 flex-1">
+										<span class="block truncate font-medium">{result.name}</span>
+										<span class="block truncate text-xs text-gray-500">{result.detail}</span>
+									</span>
+								</button>
+							{/each}
+						{/if}
+					</div>
+				{/if}
+			</div>
 
-						<div class="flex justify-end items-center gap-1.5 shrink-0">
+			{#if accessGroups.length > 0 || (shareUsers && selectedUsers.length > 0)}
+				<ul class="flex flex-col gap-1.5">
+					{#each accessGroups as group (group.id)}
+						<li class="flex items-center gap-2">
+							<span
+								class="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-700 text-xs font-semibold text-white dark:bg-gray-300 dark:text-gray-900"
+								aria-hidden="true"
+							>
+								{initials(group.name)}
+							</span>
+							<span class="min-w-0 flex-1 text-sm">
+								<span class="font-semibold">{group.name}</span>
+								<span class="text-gray-500">
+									· {$i18n.t('team, {{count}} people', { count: group?.member_count ?? 0 })}
+								</span>
+							</span>
 							{#if accessRoles.includes('write')}
 								<select
-									aria-label={$i18n.t('Access level')}
-									class="bg-transparent text-sm outline-none"
-									value={writeUserIds.includes(user.id) ? 'write' : 'read'}
+									aria-label={$i18n.t('Role for {{name}}', { name: group.name })}
+									class={roleSelectClass}
+									value={writeGroupIds.includes(group.id) ? 'write' : 'read'}
 									on:change={(e) => {
-										if (
-											((e.target as HTMLSelectElement).value === 'write') !==
-											writeUserIds.includes(user.id)
-										) {
-											togglePrincipalWrite('user', user.id);
+										if ((e.currentTarget.value === 'write') !== writeGroupIds.includes(group.id)) {
+											togglePrincipalWrite('group', group.id);
 										}
 									}}
 								>
-									<option value="read">{$i18n.t('Read')}</option>
-									<option value="write">{$i18n.t('Write')}</option>
+									<option value="read">{$i18n.t('Can use')}</option>
+									<option value="write">{$i18n.t('Can edit')}</option>
 								</select>
 							{:else}
-								<Badge type={'info'} content={$i18n.t('Read')} />
+								<span class="text-xs text-gray-500">{$i18n.t('Can use')}</span>
 							{/if}
-
 							<button
-								class="rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-850 transition"
 								type="button"
-								on:click={() => {
-									removePrincipal('user', user.id);
-								}}
+								class={removeButtonClass}
+								aria-label={$i18n.t('Remove {{name}}', { name: group.name })}
+								on:click={() => removePrincipal('group', group.id)}
 							>
-								<XMark className="size-4" />
+								<XMark className="size-3.5" />
 							</button>
-						</div>
-					</div>
-				{/each}
-			{/if}
+						</li>
+					{/each}
 
-			{#if getVisibility(accessGrants ?? []) === 'private' && accessGroups.length === 0 && selectedUsers.length === 0}
-				<div class="text-xs text-gray-500 text-center py-3">
-					{$i18n.t('No access grants. Private to you.')}
-				</div>
+					{#if shareUsers}
+						{#each selectedUsers as user (user.id)}
+							<li class="flex items-center gap-2">
+								<img
+									class="size-8 shrink-0 rounded-full object-cover"
+									src={`${WEBUI_API_BASE_URL}/users/${user.id}/profile/image`}
+									alt=""
+								/>
+								<span class="min-w-0 flex-1 text-sm">
+									<span class="block truncate font-semibold" title={user.email}>
+										{user.name ?? user.id}
+									</span>
+									{#if user.email}
+										<span class="block truncate text-xs text-gray-500">{user.email}</span>
+									{/if}
+								</span>
+								{#if accessRoles.includes('write')}
+									<select
+										aria-label={$i18n.t('Role for {{name}}', { name: user.name ?? user.id })}
+										class={roleSelectClass}
+										value={writeUserIds.includes(user.id) ? 'write' : 'read'}
+										on:change={(e) => {
+											if ((e.currentTarget.value === 'write') !== writeUserIds.includes(user.id)) {
+												togglePrincipalWrite('user', user.id);
+											}
+										}}
+									>
+										<option value="read">{$i18n.t('Can use')}</option>
+										<option value="write">{$i18n.t('Can edit')}</option>
+									</select>
+								{:else}
+									<span class="text-xs text-gray-500">{$i18n.t('Can use')}</span>
+								{/if}
+								<button
+									type="button"
+									class={removeButtonClass}
+									aria-label={$i18n.t('Remove {{name}}', { name: user.name ?? user.id })}
+									on:click={() => removePrincipal('user', user.id)}
+								>
+									<XMark className="size-3.5" />
+								</button>
+							</li>
+						{/each}
+					{/if}
+				</ul>
+			{:else if level === 'specific'}
+				<p class="text-xs text-gray-500">
+					{$i18n.t('Nobody added yet. Until you add someone, only you can use it.')}
+				</p>
 			{/if}
 		</div>
 	{/if}

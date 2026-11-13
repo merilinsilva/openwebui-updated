@@ -92,6 +92,8 @@
 </script>
 
 <AccessControlModal
+	itemName={name}
+	subtitle={$i18n.t('Knowledge base')}
 	bind:show={showAccessControlModal}
 	bind:accessGrants
 	accessRoles={['read', 'write']}

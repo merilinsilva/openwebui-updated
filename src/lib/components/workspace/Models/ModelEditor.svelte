@@ -531,6 +531,8 @@
 
 {#if loaded}
 	<AccessControlModal
+	itemName={name}
+	subtitle={$i18n.t('Model')}
 		bind:show={showAccessControlModal}
 		bind:accessGrants
 		accessRoles={preset ? ['read', 'write'] : ['read']}
