@@ -119,6 +119,81 @@ export const getFileProcessStatus = async (token: string, id: string) => {
 	return res;
 };
 
+// Like uploadFile(..., stream=false), but reports upload progress (0-100) and returns as soon
+// as the file is stored; processing continues on the server (follow it with watchFileProcessStatus).
+export const uploadFileWithProgress = (
+	token: string,
+	file: File,
+	metadata: object | null,
+	onProgress: (percent: number) => void = () => {}
+): Promise<any> =>
+	new Promise((resolve, reject) => {
+		const data = new FormData();
+		data.append('file', file);
+		if (metadata) {
+			data.append('metadata', JSON.stringify(metadata));
+		}
+
+		const xhr = new XMLHttpRequest();
+		xhr.open('POST', `${WEBUI_API_BASE_URL}/files/`);
+		xhr.setRequestHeader('Accept', 'application/json');
+		xhr.setRequestHeader('authorization', `Bearer ${token}`);
+
+		xhr.upload.onprogress = (e) => {
+			if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+		};
+		xhr.onload = () => {
+			let body = null;
+			try {
+				body = JSON.parse(xhr.responseText);
+			} catch {
+				// non-JSON error page
+			}
+			if (xhr.status >= 200 && xhr.status < 300) {
+				resolve(body);
+			} else {
+				reject(body?.detail ?? body?.message ?? `Upload failed (${xhr.status})`);
+			}
+		};
+		xhr.onerror = () => reject('Network error while uploading. Check your connection.');
+		xhr.send(data);
+	});
+
+export type FileProcessEvent = { status: string; error?: string };
+
+// Follows the server's processing of a file (pending -> processing -> completed | failed).
+// Calls onEvent for each status update and resolves with the last one.
+export const watchFileProcessStatus = async (
+	token: string,
+	id: string,
+	onEvent: (event: FileProcessEvent) => void = () => {}
+): Promise<FileProcessEvent | null> => {
+	const res = await getFileProcessStatus(token, id);
+	if (!res || !res.ok || !res.body) return null;
+
+	const reader = res.body
+		.pipeThrough(new TextDecoderStream())
+		.pipeThrough(splitStream('\n'))
+		.getReader();
+
+	let last: FileProcessEvent | null = null;
+	while (true) {
+		const { value, done } = await reader.read();
+		if (done) break;
+
+		for (const line of (value ?? '').split('\n')) {
+			if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+			try {
+				last = JSON.parse(line.slice('data: '.length));
+				onEvent(last);
+			} catch {
+				// ignore partial lines
+			}
+		}
+	}
+	return last;
+};
+
 export const uploadDir = async (token: string) => {
 	let error = null;
 

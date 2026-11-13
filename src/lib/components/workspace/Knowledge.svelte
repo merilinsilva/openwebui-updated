@@ -19,21 +19,25 @@
 
 	import { goto } from '$app/navigation';
 	import { capitalizeFirstLetter } from '$lib/utils';
+	import { getGroups } from '$lib/apis/groups';
+	import { getOwnership, ownershipToneClass } from '$lib/utils/ownership';
 
 	import DeleteConfirmDialog from '../common/ConfirmDialog.svelte';
 	import ItemMenu from './Knowledge/ItemMenu.svelte';
 	import CreateKnowledgeBase from './Knowledge/CreateKnowledgeBase.svelte';
-	import Badge from '../common/Badge.svelte';
-	import ChevronDown from '../icons/ChevronDown.svelte';
-	import ChevronUp from '../icons/ChevronUp.svelte';
 	import Modal from '../common/Modal.svelte';
 	import Search from '../icons/Search.svelte';
 	import Spinner from '../common/Spinner.svelte';
-	import Tooltip from '../common/Tooltip.svelte';
 	import XMark from '../icons/XMark.svelte';
-	import ViewSelector from './common/ViewSelector.svelte';
-	import TagSelector from './common/TagSelector.svelte';
 	import Loader from '../common/Loader.svelte';
+
+	// Sharing badge per card ("Weidmann", team name, "Mine").
+	let groupNames: Record<string, string> = {};
+	getGroups(localStorage.token)
+		.then((groups) => {
+			groupNames = Object.fromEntries((groups ?? []).map((g) => [g.id, g.name]));
+		})
+		.catch(() => {});
 
 	type KnowledgeListItem = {
 		id: string;
@@ -55,7 +59,6 @@
 	let loaded = false;
 	let showDeleteConfirm = false;
 	let showCreateModal = false;
-	let tagsContainerElement: HTMLDivElement;
 
 	let selectedItem: KnowledgeListItem | null = null;
 
@@ -106,14 +109,43 @@
 		init();
 	}
 
-	const setSortKey = (key: string) => {
-		if (sortKey === key) {
-			sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-		} else {
-			sortKey = key;
-			sortDirection = key === 'updated_at' ? 'desc' : 'asc';
-		}
+	// Filter chips (same values the backend's view_option accepts).
+	$: viewChips = [
+		{ value: '', label: $i18n.t('All') },
+		{ value: 'created', label: $i18n.t('Created by me') },
+		{ value: 'shared', label: $i18n.t('Shared with me') }
+	];
+
+	const setViewOption = (value: string) => {
+		viewOption = value;
+		localStorage.workspaceViewOption = value;
 	};
+
+	const setSourceOption = (value: string) => {
+		sourceOption = value;
+		localStorage.workspaceKnowledgeSourceOption = value;
+	};
+
+	// Only offer the "Connected sources" filter when there are any (or it is already on).
+	$: showSourceChip =
+		sourceOption === 'external' || (items ?? []).some((i) => i?.meta?.source === 'external');
+
+	$: isFiltered = query.trim() !== '' || viewOption !== '' || sourceOption !== '';
+
+	const ownerOf = (item: KnowledgeListItem & { user_id?: string }) => {
+		if (item?.user_id && item.user_id === $user?.id) return $i18n.t('owned by you');
+		const name = item?.user?.name ?? item?.user?.email;
+		return name
+			? $i18n.t('owned by {{name}}', { name: capitalizeFirstLetter(name) })
+			: $i18n.t('Deleted User');
+	};
+
+	const chipClass = (active: boolean) =>
+		`shrink-0 rounded-full border px-3 py-1 text-xs transition ${
+			active
+				? 'border-red-500 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/40 dark:text-red-300'
+				: 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-850'
+		}`;
 
 	const reset = () => {
 		page = 1;
@@ -228,46 +260,6 @@
 		goto(`/workspace/knowledge/${item.id}`);
 	};
 
-	const shouldIgnoreRowClick = (target: EventTarget | null) => {
-		return target instanceof Element && !!target.closest('button, a, input, [role="menu"]');
-	};
-
-	const getKnowledgeMetaPreview = (item: KnowledgeListItem) => {
-		const fileCount =
-			item.file_count !== undefined
-				? item.file_count === 1
-					? $i18n.t('1 file')
-					: $i18n.t('{{count}} files', { count: item.file_count })
-				: null;
-
-		if (!item?.meta) return [fileCount, item.description].filter(Boolean).join(' · ');
-
-		if (item.meta.source === 'external') {
-			return [
-				fileCount,
-				item.meta.external?.provider,
-				item.meta.external?.source?.name,
-				item.meta.external?.auth_mode,
-				item.description
-			]
-				.filter(Boolean)
-				.join(' · ');
-		}
-
-		const metadata = Object.entries(item.meta)
-			.filter(([, value]) => value !== null && value !== undefined && value !== '')
-			.map(([key, value]) => {
-				if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-					return `${key}: ${value}`;
-				}
-
-				return key;
-			})
-			.join(' · ');
-
-		return [fileCount, metadata, item.description].filter(Boolean).join(' · ');
-	};
-
 	onMount(async () => {
 		viewOption = localStorage?.workspaceViewOption || '';
 		sourceOption = localStorage?.workspaceKnowledgeSourceOption || '';
@@ -301,7 +293,7 @@
 		}}
 	/>
 
-	<Modal bind:show={showCreateModal} size="md">
+	<Modal bind:show={showCreateModal} size="md" className="bg-white dark:bg-gray-900 rounded-2xl">
 		<CreateKnowledgeBase
 			modal={true}
 			onBack={() => {
@@ -310,245 +302,195 @@
 		/>
 	</Modal>
 
-	<div class="space-y-1">
-		<div class="flex h-8 w-full items-center gap-2">
-			<div class="flex min-w-0 flex-1">
-				<div class=" self-center ml-1 mr-3">
-					<Search className="size-3.5" />
-				</div>
-				<input
-					class=" w-full text-sm py-1 rounded-r-xl outline-hidden bg-transparent"
-					bind:value={query}
-					on:input={handleSearchInput}
-					aria-label={$i18n.t('Search Knowledge')}
-					placeholder={$i18n.t('Search Knowledge')}
-				/>
-				{#if query}
-					<div class="self-center pl-1.5 translate-y-[0.5px] rounded-l-xl bg-transparent">
-						<button
-							class="p-0.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-900 transition"
-							aria-label={$i18n.t('Clear search')}
-							on:click={() => {
-								query = '';
-								handleSearchInput();
-							}}
-						>
-							<XMark className="size-3" strokeWidth="2" />
-						</button>
-					</div>
-				{/if}
-			</div>
-
-			<div
-				class="flex max-w-[55%] shrink-0 overflow-x-auto scrollbar-none"
-				bind:this={tagsContainerElement}
-				on:wheel={(e) => {
-					if (e.deltaY !== 0) {
-						e.preventDefault();
-						e.currentTarget.scrollLeft += e.deltaY;
-					}
-				}}
-			>
-				<div
-					class="flex w-fit gap-0.5 text-center text-sm rounded-full bg-transparent whitespace-nowrap"
+	<!-- Breathing room below the workspace tabs / Create button (layout only adds pb-1). -->
+	<div class="flex flex-col gap-4 pt-5 text-gray-900 dark:text-gray-100">
+		<label
+			class="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 focus-within:border-gray-500 dark:border-gray-700 dark:focus-within:border-gray-500"
+		>
+			<Search className="size-3.5 shrink-0 text-gray-500" />
+			<input
+				class="w-full bg-transparent text-sm outline-hidden placeholder:text-gray-400"
+				bind:value={query}
+				on:input={handleSearchInput}
+				aria-label={$i18n.t('Search knowledge bases')}
+				placeholder={$i18n.t('Search knowledge bases, e.g. "transformer specs"')}
+			/>
+			{#if query}
+				<button
+					type="button"
+					class="rounded-full p-0.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+					aria-label={$i18n.t('Clear search')}
+					on:click={() => {
+						query = '';
+						handleSearchInput();
+					}}
 				>
-					<ViewSelector
-						bind:value={viewOption}
-						align="end"
-						onChange={async (value) => {
-							localStorage.workspaceViewOption = value;
+					<XMark className="size-3" strokeWidth="2" />
+				</button>
+			{/if}
+		</label>
 
-							await tick();
-						}}
-					/>
+		<div class="flex flex-wrap items-center gap-1.5">
+			{#each viewChips as chip (chip.value)}
+				<button
+					type="button"
+					class={chipClass(viewOption === chip.value)}
+					aria-pressed={viewOption === chip.value}
+					on:click={() => setViewOption(chip.value)}
+				>
+					{chip.label}
+				</button>
+			{/each}
 
-					<TagSelector
-						bind:value={sourceOption}
-						align="end"
-						placeholder={$i18n.t('All Sources')}
-						items={[
-							{ value: 'local', label: $i18n.t('Local') },
-							{ value: 'external', label: $i18n.t('Connected') }
-						]}
-						onChange={async () => {
-							localStorage.workspaceKnowledgeSourceOption = sourceOption;
-							await tick();
-						}}
-					/>
-				</div>
-			</div>
+			{#if showSourceChip}
+				<button
+					type="button"
+					class={chipClass(sourceOption === 'external')}
+					aria-pressed={sourceOption === 'external'}
+					on:click={() => setSourceOption(sourceOption === 'external' ? '' : 'external')}
+				>
+					{$i18n.t('Connected sources')}
+				</button>
+			{/if}
+
+			<label class="ml-auto flex items-center gap-1.5 text-xs text-gray-500">
+				{$i18n.t('Sort')}
+				<select
+					class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 outline-hidden focus:border-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:scheme-dark"
+					value={`${sortKey}:${sortDirection}`}
+					on:change={(e) => {
+						const [key, dir] = e.currentTarget.value.split(':');
+						sortKey = key;
+						sortDirection = dir;
+					}}
+				>
+					<option value="updated_at:desc">{$i18n.t('Recently updated')}</option>
+					<option value="name:asc">{$i18n.t('Name (A–Z)')}</option>
+					<option value="name:desc">{$i18n.t('Name (Z–A)')}</option>
+					<option value="updated_at:asc">{$i18n.t('Oldest first')}</option>
+				</select>
+			</label>
 		</div>
 
 		{#if items !== null && total !== null}
 			{#if (items ?? []).length !== 0}
-				<div class="my-1">
-					<div
-						class="flex w-full items-center gap-2 px-1.5 pb-0.5 text-xs text-gray-400 dark:text-gray-600"
-					>
-						<button
-							class="flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left"
-							type="button"
-							on:click={() => setSortKey('name')}
-						>
-							{$i18n.t('Title')}
-							{#if sortKey === 'name'}
-								{#if sortDirection === 'asc'}
-									<ChevronUp className="size-2" />
-								{:else}
-									<ChevronDown className="size-2" />
-								{/if}
-							{/if}
-						</button>
-
-						<div class="hidden w-44 shrink-0 md:block"></div>
-
-						<button
-							class="flex w-36 shrink-0 items-center justify-end gap-1 py-0.5 text-right"
-							type="button"
-							on:click={() => setSortKey('updated_at')}
-						>
-							{$i18n.t('Updated at')}
-							{#if sortKey === 'updated_at'}
-								{#if sortDirection === 'asc'}
-									<ChevronUp className="size-2" />
-								{:else}
-									<ChevronDown className="size-2" />
-								{/if}
-							{/if}
-						</button>
-					</div>
-
-					<div class="grid gap-y-0.5">
-						{#each items as item}
-							{@const metaPreview = getKnowledgeMetaPreview(item)}
-							<div
-								class="group flex min-h-8 w-full cursor-pointer items-center gap-2 overflow-hidden rounded-xl px-2 py-1 text-left"
-								role="button"
-								tabindex="0"
-								on:click={(e) => {
-									if (shouldIgnoreRowClick(e.target)) return;
-									openKnowledge(item);
-								}}
-								on:keydown={(e) => {
-									if (e.currentTarget !== e.target) return;
-									if (e.key === 'Enter' || e.key === ' ') {
-										e.preventDefault();
-										openKnowledge(item);
-									}
-								}}
+				<ul class="grid gap-2.5 md:grid-cols-2">
+					{#each items as item (item.id)}
+						{@const external = item?.meta?.source === 'external'}
+						{@const own = getOwnership(item, $user?.id, groupNames, (k, o) => $i18n.t(k, o))}
+						{@const canManage = item?.write_access || $user?.role === 'admin'}
+						<li class="group relative">
+							<button
+								type="button"
+								class="flex h-full w-full flex-col rounded-xl border border-gray-200 px-4 py-3 text-left transition hover:border-gray-400 hover:bg-gray-50 focus-visible:border-gray-500 dark:border-gray-800 dark:hover:border-gray-600 dark:hover:bg-gray-850"
+								on:click={() => openKnowledge(item)}
 							>
-								<div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-									<div class="flex min-w-0 flex-1 flex-col overflow-hidden">
-										<div class="flex min-w-0 items-center gap-2 overflow-hidden">
-											<div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-												<Tooltip
-													content={item?.description ?? item.name}
-													className="min-w-0"
-													placement="top-start"
-												>
-													<div
-														class="truncate text-[0.8125rem] leading-5 text-gray-800 group-hover:underline dark:text-gray-200"
-													>
-														{item.name}
-													</div>
-												</Tooltip>
-
-												{#if item?.meta?.source === 'external'}
-													<Badge
-														type="muted"
-														content={item?.meta?.external?.provider ?? $i18n.t('Connected')}
-													/>
-													<Badge type="muted" content={$i18n.t('Read Only')} />
-												{/if}
-
-												{#if !item?.write_access && item?.meta?.source !== 'external'}
-													<Badge type="muted" content={$i18n.t('Read Only')} />
-												{/if}
-
-												<Tooltip content={dayjs(item.updated_at * 1000).format('LLLL')}>
-													<div
-														class="shrink-0 truncate text-[0.6875rem] leading-5 text-gray-400 dark:text-gray-600"
-													>
-														{dayjs(item.updated_at * 1000).fromNow()}
-													</div>
-												</Tooltip>
-											</div>
-										</div>
-
-										{#if metaPreview}
-											<Tooltip content={metaPreview} className="min-w-0" placement="top-start">
-												<div
-													class="mt-0.5 truncate text-[0.6875rem] leading-4 text-gray-400 dark:text-gray-600"
-												>
-													{metaPreview}
-												</div>
-											</Tooltip>
-										{/if}
-									</div>
+								<div class="flex w-full items-center gap-2 {canManage ? 'pr-7' : ''}">
+									<span class="min-w-0 flex-1 truncate text-sm font-semibold">{item.name}</span>
+									{#if external}
+										<span
+											class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[0.6875rem] text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+										>
+											{item?.meta?.external?.provider ?? $i18n.t('Connected')}
+										</span>
+									{:else}
+										<span
+											class="max-w-[45%] shrink-0 truncate rounded-full px-2 py-0.5 text-[0.6875rem] {ownershipToneClass(
+												own.tone
+											)}"
+											title={own.description}
+										>
+											{own.label}
+										</span>
+									{/if}
 								</div>
 
+								<div class="mt-1 line-clamp-2 min-h-[2rem] text-xs text-gray-600 dark:text-gray-400">
+									{item.description || $i18n.t('No description')}
+								</div>
+
+								<div class="mt-2 flex flex-wrap items-center gap-x-1.5 text-[0.6875rem] text-gray-500">
+									{#if item.file_count !== undefined && item.file_count !== null}
+										<span>
+											{item.file_count === 1
+												? $i18n.t('1 document')
+												: $i18n.t('{{COUNT}} documents', { COUNT: item.file_count })}
+										</span>
+										<span aria-hidden="true">·</span>
+									{/if}
+									<span title={dayjs(item.updated_at * 1000).format('LLLL')}>
+										{$i18n.t('updated {{time}}', { time: dayjs(item.updated_at * 1000).fromNow() })}
+									</span>
+									<span aria-hidden="true">·</span>
+									<span class="truncate" title={item?.user?.email ?? ''}>{ownerOf(item)}</span>
+									{#if external || !item?.write_access}
+										<span aria-hidden="true">·</span>
+										<span>{$i18n.t('Read Only')}</span>
+									{/if}
+								</div>
+							</button>
+
+							{#if canManage}
 								<div
-									class="hidden max-w-44 shrink-0 self-center truncate text-right text-[0.6875rem] leading-5 text-gray-500 dark:text-gray-500 md:block"
+									class="absolute top-2 right-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100"
 								>
-									<Tooltip
-										content={item?.user?.email ?? $i18n.t('Deleted User')}
-										className="min-w-0"
-										placement="top-start"
-									>
-										<div class="truncate">
-											{capitalizeFirstLetter(
-												item?.user?.name ?? item?.user?.email ?? $i18n.t('Deleted User')
-											)}
-										</div>
-									</Tooltip>
+									<ItemMenu
+										onExport={$user?.role === 'admin'
+											? () => {
+													exportHandler(item);
+												}
+											: null}
+										on:delete={() => {
+											selectedItem = item;
+											showDeleteConfirm = true;
+										}}
+									/>
 								</div>
-
-								{#if item?.write_access || $user?.role === 'admin'}
-									<div class="ml-2 flex shrink-0 flex-row items-center self-center">
-										<ItemMenu
-											onExport={$user?.role === 'admin'
-												? () => {
-														exportHandler(item);
-													}
-												: null}
-											on:delete={() => {
-												selectedItem = item;
-												showDeleteConfirm = true;
-											}}
-										/>
-									</div>
-								{/if}
-							</div>
-						{/each}
-					</div>
-				</div>
+							{/if}
+						</li>
+					{/each}
+				</ul>
 
 				{#if !allItemsLoaded}
 					<Loader
-						on:visible={(e) => {
+						on:visible={() => {
 							if (!itemsLoading) {
 								loadMoreItems();
 							}
 						}}
 					>
-						<div class="w-full flex justify-center py-4 text-xs animate-pulse items-center gap-2">
+						<div class="flex w-full items-center justify-center gap-2 py-4 text-xs animate-pulse">
 							<Spinner className=" size-4" />
-							<div class=" ">{$i18n.t('Loading...')}</div>
+							<div>{$i18n.t('Loading...')}</div>
 						</div>
 					</Loader>
 				{/if}
-			{:else}
-				<div class="flex w-full flex-col items-center justify-center py-16 pb-24">
-					<div class="max-w-sm text-center text-gray-900 dark:text-gray-100">
-						<div class="mb-1.5 text-sm">{$i18n.t('No knowledge found')}</div>
-						<div class="text-center text-xs leading-5 text-gray-500">
-							{$i18n.t('Try adjusting your search or filter to find what you are looking for.')}
-						</div>
+			{:else if isFiltered}
+				<div class="py-16 text-center">
+					<div class="text-sm">{$i18n.t('Nothing matches your search')}</div>
+					<div class="mt-1 text-xs text-gray-500">
+						{$i18n.t('Try another word, or switch the filter back to All.')}
 					</div>
+				</div>
+			{:else}
+				<div class="mx-auto flex max-w-sm flex-col items-center py-16 text-center">
+					<div class="text-base font-semibold">{$i18n.t('No knowledge bases yet')}</div>
+					<p class="mt-1 text-sm text-gray-500">
+						{$i18n.t(
+							'A knowledge base holds documents CHOn can search and quote, like specs, manuals or reports.'
+						)}
+					</p>
+					<button
+						type="button"
+						class="mt-4 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+						on:click={() => (showCreateModal = true)}
+					>
+						+ {$i18n.t('New knowledge base')}
+					</button>
 				</div>
 			{/if}
 		{:else}
-			<div class="w-full h-full flex justify-center items-center py-10">
+			<div class="flex w-full items-center justify-center py-10">
 				<Spinner className="size-4" />
 			</div>
 		{/if}

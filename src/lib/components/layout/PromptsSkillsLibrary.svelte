@@ -18,6 +18,7 @@
 	import { getSkills } from '$lib/apis/skills';
 	import { getGroups } from '$lib/apis/groups';
 	import { slugify, parseFrontmatter, formatSkillName } from '$lib/utils';
+	import { getOwnership, ownershipToneClass, type Ownership } from '$lib/utils/ownership';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -30,12 +31,9 @@
 
 	const i18n = getContext('i18n');
 
-	// Shown on items visible to everyone in the company.
-	const ORG_NAME = 'Weidmann';
 	// The prompt list endpoint pages in 30s; stop after this many pages.
 	const MAX_PROMPT_PAGES = 20;
 
-	type Ownership = { label: string; tone: 'org' | 'team' | 'mine' | 'shared' };
 	type LibraryItem = {
 		key: string;
 		type: 'prompt' | 'skill';
@@ -107,25 +105,8 @@
 		showCreatePrompt = false;
 	}
 
-	const ownershipOf = (item: any): Ownership => {
-		const grants = item?.access_grants ?? [];
-		const isPublic = grants.some(
-			(g) =>
-				(g.principal_type === 'user' || g.principal_type === 'anyone') && g.principal_id === '*'
-		);
-		if (isPublic) return { label: ORG_NAME, tone: 'org' };
-
-		const groupGrant = grants.find((g) => g.principal_type === 'group');
-		if (groupGrant) {
-			return {
-				label: groupNames[groupGrant.principal_id] ?? $i18n.t('Team'),
-				tone: 'team'
-			};
-		}
-
-		if (item?.user_id === $user?.id) return { label: $i18n.t('Mine'), tone: 'mine' };
-		return { label: $i18n.t('Shared'), tone: 'shared' };
-	};
+	const ownershipOf = (item: any): Ownership =>
+		getOwnership(item, $user?.id, groupNames, (k, o) => $i18n.t(k, o));
 
 	const ownerNoteOf = (item: any, ownership: Ownership) => {
 		if (item?.user_id === $user?.id) {
@@ -258,13 +239,7 @@
 		input.value = '';
 	};
 
-	const toneClass = (tone: Ownership['tone']) =>
-		({
-			org: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
-			team: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
-			mine: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-			shared: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-		})[tone];
+	const toneClass = ownershipToneClass;
 
 	const chipClass = (active: boolean) =>
 		`shrink-0 rounded-full border px-3 py-1 text-xs transition ${

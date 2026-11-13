@@ -148,6 +148,11 @@ export type ChatInputInsert =
 	| { type: 'skill'; id: string; name: string };
 export const chatInputInsert: Writable<ChatInputInsert | null> = writable(null);
 
+// Files picked in the "New knowledge base" dialog; the knowledge base page uploads them
+// (with per-file status) once it opens for the new knowledge base.
+export const pendingKnowledgeUploads: Writable<{ knowledgeId: string; files: File[] } | null> =
+	writable(null);
+
 export const showControls = writable(false);
 export const showEmbeds = writable(false);
 export const showOverview = writable(false);

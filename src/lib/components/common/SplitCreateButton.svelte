@@ -11,6 +11,12 @@
 	import DocumentArrowUp from '$lib/components/icons/DocumentArrowUp.svelte';
 	import Link from '$lib/components/icons/Link.svelte';
 	import Pencil from '$lib/components/icons/Pencil.svelte';
+	import Plus from '$lib/components/icons/Plus.svelte';
+
+	// CHOn style: white fill, Weidmann-red outline and text.
+	const shellClass =
+		'ml-1 rounded-lg border border-red-600 bg-white text-[0.8125rem] font-medium text-red-600 transition dark:border-red-500 dark:bg-gray-900 dark:text-red-400';
+	const hoverClass = 'hover:bg-red-50 dark:hover:bg-red-950/40';
 
 	type SplitCreateAction = {
 		id: string;
@@ -50,33 +56,34 @@
 
 {#if visibleActions.length === 1}
 	<button
-		class="focus-ring ml-1 rounded-lg bg-gray-50 px-2.5 py-1 text-xs text-gray-900 transition ring-1 ring-gray-200 hover:bg-gray-100 dark:bg-gray-850 dark:text-gray-100 dark:ring-gray-800 dark:hover:bg-gray-800"
+		class="focus-ring flex items-center gap-1.5 px-5 py-1.5 {shellClass} {hoverClass}"
 		type="button"
 		on:click={() => {
 			runAction(primaryAction);
 		}}
 	>
+		<Plus className="size-3.5" strokeWidth="2.5" />
 		{$i18n.t(label)}
 	</button>
 {:else if visibleActions.length > 1}
-	<div
-		class="ml-1 flex overflow-hidden rounded-lg bg-gray-50 text-xs text-gray-900 transition ring-1 ring-gray-200 dark:bg-gray-850 dark:text-gray-100 dark:ring-gray-800"
-	>
+	<!-- items-stretch: the arrow half (inside Dropdown's display:contents span) must fill the height. -->
+	<div class="flex items-stretch overflow-hidden {shellClass}">
 		<button
-			class="focus-ring px-2.5 py-1 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+			class="focus-ring flex items-center gap-1.5 py-1.5 pr-4 pl-5 transition {hoverClass}"
 			on:click={() => {
 				runAction(primaryAction);
 			}}
 		>
+			<Plus className="size-3.5" strokeWidth="2.5" />
 			{$i18n.t(label)}
 		</button>
 
 		<Dropdown bind:show={showMenu} align="end" sideOffset={6}>
 			<button
-				class="focus-ring flex items-center border-l border-gray-200 px-1.5 py-1 transition hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800"
+				class="focus-ring flex items-center self-stretch border-l border-red-600 px-2.5 transition dark:border-red-500 {hoverClass}"
 				aria-label={$i18n.t('Open create menu')}
 			>
-				<ChevronDown className="size-2.5" strokeWidth="2.5" />
+				<ChevronDown className="size-3" strokeWidth="2.5" />
 			</button>
 
 			<div slot="content">

@@ -17,16 +17,26 @@
 		knowledge as _knowledge,
 		config,
 		user,
-		settings
+		settings,
+		pendingKnowledgeUploads
 	} from '$lib/stores';
 
 	import {
 		updateFileDataContentById,
 		uploadFile,
+		uploadFileWithProgress,
+		watchFileProcessStatus,
 		deleteFileById,
 		getFileById,
 		renameFileById
 	} from '$lib/apis/files';
+	import { getGroups } from '$lib/apis/groups';
+	import { getOwnership, ownershipToneClass } from '$lib/utils/ownership';
+	import dayjs from 'dayjs';
+	import relativeTime from 'dayjs/plugin/relativeTime';
+	import UploadList, { type UploadEntry } from './KnowledgeBase/UploadList.svelte';
+
+	dayjs.extend(relativeTime);
 	import {
 		addFileToKnowledgeById,
 		getKnowledgeById,
@@ -65,7 +75,6 @@
 	import ConfirmDialog from '../../common/ConfirmDialog.svelte';
 	import Drawer from '$lib/components/common/Drawer.svelte';
 	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
-	import AccessButton from '$lib/components/common/AccessButton.svelte';
 	import AccessControlModal from '../common/AccessControlModal.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
 	import FilesOverlay from '$lib/components/chat/MessageInput/FilesOverlay.svelte';
@@ -101,7 +110,26 @@
 		access_grants?: any[];
 		write_access?: boolean;
 		meta?: any;
+		user_id?: string;
+		updated_at?: number;
+		user?: { name?: string; email?: string } | null;
 	};
+
+	// Header: who can use this knowledge base and who owns it.
+	let groupNames: Record<string, string> = {};
+	getGroups(localStorage.token)
+		.then((groups) => {
+			groupNames = Object.fromEntries((groups ?? []).map((g) => [g.id, g.name]));
+		})
+		.catch(() => {});
+
+	$: ownership = getOwnership(knowledge, $user?.id, groupNames, (k, o) => $i18n.t(k, o));
+	$: ownerLabel =
+		knowledge?.user_id === $user?.id
+			? $i18n.t('owned by you')
+			: knowledge?.user?.name || knowledge?.user?.email
+				? $i18n.t('owned by {{name}}', { name: knowledge?.user?.name || knowledge?.user?.email })
+				: '';
 
 	let id = null;
 	let knowledge: Knowledge | null = null;
@@ -403,84 +431,142 @@
 		}
 	};
 
-	const uploadFileHandler = async (file) => {
-		console.log(file);
+	// ---- Uploads with per-file status (Queued -> Uploading -> Reading -> Ready | Failed) ----
+	// Files are sent one at a time; the server then reads/indexes them in the background and
+	// links them to this knowledge base itself, so we only follow its status stream.
+	let uploads: UploadEntry[] = [];
+	let uploadQueueRunning = false;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-		const fileItem = {
-			type: 'file',
-			file: '',
-			id: null,
-			url: '',
-			name: file.name,
-			size: file.size,
-			status: 'uploading',
-			error: '',
-			itemId: uuidv4()
-		};
+	const updateUpload = (itemId: string, patch: Partial<UploadEntry>) => {
+		uploads = uploads.map((u) => (u.itemId === itemId ? { ...u, ...patch } : u));
+	};
 
-		if (fileItem.size == 0) {
-			toast.error($i18n.t('You cannot upload an empty file.'));
-			return null;
-		}
+	// Several files can finish close together: refresh the file list once.
+	const scheduleRefresh = () => {
+		if (refreshTimer) clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			init();
+		}, 800);
+	};
 
-		if (
-			($config?.file?.max_size ?? null) !== null &&
-			file.size > ($config?.file?.max_size ?? 0) * 1024 * 1024
-		) {
-			console.log('File exceeds max size limit:', {
-				fileSize: file.size,
-				maxSize: ($config?.file?.max_size ?? 0) * 1024 * 1024
+	const precheckFile = (file: File): string | null => {
+		if (file.size === 0) return 'empty file';
+		const maxSize = $config?.file?.max_size ?? null;
+		if (maxSize !== null && file.size > maxSize * 1024 * 1024) return 'file too large';
+		return null;
+	};
+
+	const followProcessing = async (itemId: string, fileId: string) => {
+		try {
+			const last = await watchFileProcessStatus(localStorage.token, fileId, (event) => {
+				if (event.status === 'pending' || event.status === 'processing') {
+					updateUpload(itemId, { state: 'reading' });
+				}
 			});
-			toast.error(
-				$i18n.t(`File size should not exceed {{maxSize}} MB.`, {
-					maxSize: $config?.file?.max_size
-				})
-			);
+
+			if (last?.status === 'failed') {
+				updateUpload(itemId, { state: 'failed', error: last.error ?? '' });
+				return;
+			}
+			if (last?.status === 'not_found') {
+				updateUpload(itemId, { state: 'failed', error: 'File was removed while reading.' });
+				return;
+			}
+
+			// The server reports "completed" after the first read, then indexes the file into this
+			// knowledge base and links it. Wait until it is no longer pending here, then confirm.
+			const deadline = Date.now() + 30 * 60 * 1000;
+			while (Date.now() < deadline) {
+				const pending = await getPendingKnowledgeFiles(localStorage.token, knowledgeId).catch(
+					() => []
+				);
+				if (!(pending ?? []).some((f) => f.id === fileId)) break;
+				await new Promise((resolve) => setTimeout(resolve, 1500));
+			}
+
+			const finalFile = await getFileById(localStorage.token, fileId).catch(() => null);
+			if (finalFile?.data?.status === 'failed') {
+				updateUpload(itemId, { state: 'failed', error: finalFile?.data?.error ?? '' });
+			} else {
+				updateUpload(itemId, { state: 'ready' });
+				scheduleRefresh();
+			}
+		} catch (e) {
+			updateUpload(itemId, { state: 'failed', error: `${e}` });
+		}
+	};
+
+	const sendUpload = async (entry: UploadEntry) => {
+		const file = entry.file as File;
+		const problem = precheckFile(file);
+		if (problem) {
+			updateUpload(entry.itemId, { state: 'failed', error: problem });
 			return;
 		}
 
-		fileItems = [fileItem, ...(fileItems ?? [])];
+		updateUpload(entry.itemId, { state: 'uploading', progress: 0, error: '' });
 		try {
-			let metadata = {
+			const metadata = {
 				knowledge_id: knowledge.id,
 				directory_id: currentDirectoryId,
 				// If the file is an audio file, provide the language for STT.
 				...((file.type.startsWith('audio/') || file.type.startsWith('video/')) &&
 				$settings?.audio?.stt?.language
-					? {
-							language: $settings?.audio?.stt?.language
-						}
+					? { language: $settings?.audio?.stt?.language }
 					: {})
 			};
 
-			const uploadedFile = await uploadFile(localStorage.token, file, metadata).catch((e) => {
-				toast.error(`${e}`);
-				return null;
-			});
+			const uploaded = await uploadFileWithProgress(localStorage.token, file, metadata, (p) =>
+				updateUpload(entry.itemId, { progress: p })
+			);
 
-			if (uploadedFile) {
-				console.log(uploadedFile);
-				fileItems = fileItems.map((item) => {
-					if (item.itemId === fileItem.itemId) {
-						item.id = uploadedFile.id;
-					}
-					return item;
-				});
-
-				if (uploadedFile.error) {
-					console.warn('File upload warning:', uploadedFile.error);
-					toast.warning(uploadedFile.error);
-					fileItems = fileItems.filter((file) => file.id !== uploadedFile.id);
-				} else {
-					toast.success($i18n.t('File added successfully.'));
-					init();
-				}
-			} else {
-				toast.error($i18n.t('Failed to upload file.'));
+			if (!uploaded?.id) {
+				updateUpload(entry.itemId, { state: 'failed', error: uploaded?.error ?? '' });
+				return;
 			}
+
+			updateUpload(entry.itemId, { state: 'reading', fileId: uploaded.id });
+			// Don't wait: the next file can upload while this one is being read.
+			followProcessing(entry.itemId, uploaded.id);
 		} catch (e) {
-			toast.error(`${e}`);
+			updateUpload(entry.itemId, { state: 'failed', error: `${e}` });
 		}
+	};
+
+	const runUploadQueue = async () => {
+		if (uploadQueueRunning) return;
+		uploadQueueRunning = true;
+		try {
+			let next: UploadEntry | undefined;
+			while ((next = uploads.find((u) => u.state === 'queued'))) {
+				await sendUpload(next);
+			}
+		} finally {
+			uploadQueueRunning = false;
+		}
+	};
+
+	const queueUploads = (files: File[]) => {
+		const entries: UploadEntry[] = files.map((file) => ({
+			itemId: uuidv4(),
+			name: file.name,
+			size: file.size,
+			state: 'queued',
+			file
+		}));
+		uploads = [...uploads, ...entries];
+		runUploadQueue();
+	};
+
+	const uploadFileHandler = async (file: File) => {
+		queueUploads([file]);
+	};
+
+	const retryUpload = (entry: UploadEntry) => {
+		updateUpload(entry.itemId, { state: 'queued', error: '', progress: 0, fileId: null });
+		runUploadQueue();
 	};
 
 	const uploadDirectoryHandler = async () => {
@@ -1119,6 +1205,13 @@
 				knowledge.access_grants = [];
 			}
 			knowledgeId = knowledge?.id;
+
+			// Files chosen in the "New knowledge base" dialog.
+			const pending = $pendingKnowledgeUploads;
+			if (pending?.knowledgeId === knowledgeId && pending.files.length > 0) {
+				pendingKnowledgeUploads.set(null);
+				queueUploads(pending.files);
+			}
 		} else {
 			goto('/workspace/knowledge');
 		}
@@ -1131,6 +1224,7 @@
 
 	onDestroy(() => {
 		clearTimeout(searchDebounceTimer);
+		if (refreshTimer) clearTimeout(refreshTimer);
 		if (pendingPollTimer) {
 			clearInterval(pendingPollTimer);
 			pendingPollTimer = null;
@@ -1195,9 +1289,7 @@
 	hidden
 	on:change={async () => {
 		if (inputFiles && inputFiles.length > 0) {
-			for (const file of inputFiles) {
-				await uploadFileHandler(file);
-			}
+			queueUploads(Array.from(inputFiles));
 
 			inputFiles = null;
 			const fileInputElement = document.getElementById('files-input');
@@ -1242,76 +1334,85 @@
 				<span>{$i18n.t('Back')}</span>
 			</button>
 
-			<div class=" flex w-full">
-				<div class="flex-1 px-1">
-					<div class="flex items-center justify-between w-full">
-						<div class="w-full flex justify-between items-center">
-							<input
-								type="text"
-								class="text-left w-full text-sm bg-transparent outline-hidden flex-1"
-								bind:value={knowledge.name}
-								aria-label={$i18n.t('Knowledge Name')}
-								placeholder={$i18n.t('Knowledge Name')}
-								disabled={!knowledge?.write_access}
-								on:input={() => {
-									changeDebounceHandler();
-								}}
-							/>
-
-							<div class="shrink-0 mr-2.5">
-								{#if fileItemsTotal}
-									<div class="text-xs text-gray-500">
-										<!-- {$i18n.t('{{COUNT}} files')} -->
-										{$i18n.t('{{COUNT}} files', {
-											COUNT: fileItemsTotal
-										})}
-									</div>
-								{/if}
-							</div>
-						</div>
-
-						{#if knowledge?.write_access}
-							<div class="self-center shrink-0">
-								<AccessButton
-									on:click={() => {
-										showAccessControlModal = true;
-									}}
-								/>
-							</div>
-						{:else}
-							<div class="text-xs shrink-0 text-gray-500">
-								{$i18n.t('Read Only')}
-							</div>
-						{/if}
-					</div>
-
-					<div class="flex w-full items-center">
+			<div class="flex w-full items-start gap-3 px-1 text-gray-900 dark:text-gray-100">
+				<div class="min-w-0 flex-1">
+					<div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
 						<input
 							type="text"
-							class="text-left text-xs w-full text-gray-500 bg-transparent outline-hidden flex-1"
-							bind:value={knowledge.description}
-							aria-label={$i18n.t('Knowledge Description')}
-							placeholder={$i18n.t('Knowledge Description')}
+							class="min-w-[8rem] flex-1 bg-transparent text-base font-semibold outline-hidden"
+							bind:value={knowledge.name}
+							aria-label={$i18n.t('Knowledge Name')}
+							placeholder={$i18n.t('Knowledge Name')}
 							disabled={!knowledge?.write_access}
 							on:input={() => {
 								changeDebounceHandler();
 							}}
 						/>
-
-						<div class="hidden md:block">
-							<Tooltip content={$i18n.t('Click to copy ID')}>
-								<button
-									class="text-xs text-gray-500 font-mono shrink-0 px-2 py-1 rounded-lg cursor-pointer hover:underline transition whitespace-nowrap"
-									on:click={() => {
-										copyToClipboard(id);
-										toast.success($i18n.t('ID copied to clipboard'));
-									}}
-								>
-									{id}
-								</button>
-							</Tooltip>
-						</div>
+						<svelte:element
+							this={knowledge?.write_access ? 'button' : 'span'}
+							type={knowledge?.write_access ? 'button' : undefined}
+							class="shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] {ownershipToneClass(
+								ownership.tone
+							)} {knowledge?.write_access ? 'hover:underline' : ''}"
+							title={knowledge?.write_access ? $i18n.t('Change who can use it') : undefined}
+							on:click={() => {
+								if (knowledge?.write_access) showAccessControlModal = true;
+							}}
+						>
+							{ownership.description}
+						</svelte:element>
 					</div>
+
+					<div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-gray-500">
+						<span>{$i18n.t('Knowledge base')}</span>
+						{#if fileItemsTotal !== null}
+							<span aria-hidden="true">·</span>
+							<span>
+								{fileItemsTotal === 1
+									? $i18n.t('1 document')
+									: $i18n.t('{{COUNT}} documents', { COUNT: fileItemsTotal })}
+							</span>
+						{/if}
+						{#if knowledge?.updated_at}
+							<span aria-hidden="true">·</span>
+							<span title={dayjs(knowledge.updated_at * 1000).format('LLLL')}>
+								{$i18n.t('last updated {{time}}', {
+									time: dayjs(knowledge.updated_at * 1000).fromNow()
+								})}
+							</span>
+						{/if}
+						{#if ownerLabel}
+							<span aria-hidden="true">·</span>
+							<span>{ownerLabel}</span>
+						{/if}
+						{#if !knowledge?.write_access}
+							<span aria-hidden="true">·</span>
+							<span>{$i18n.t('Read Only')}</span>
+						{/if}
+						<Tooltip content={$i18n.t('Click to copy ID')}>
+							<button
+								class="hidden font-mono hover:underline md:inline"
+								on:click={() => {
+									copyToClipboard(id);
+									toast.success($i18n.t('ID copied to clipboard'));
+								}}
+							>
+								· {id}
+							</button>
+						</Tooltip>
+					</div>
+
+					<input
+						type="text"
+						class="mt-1 w-full bg-transparent text-xs text-gray-600 outline-hidden dark:text-gray-400"
+						bind:value={knowledge.description}
+						aria-label={$i18n.t('Knowledge Description')}
+						placeholder={$i18n.t('Knowledge Description')}
+						disabled={!knowledge?.write_access}
+						on:input={() => {
+							changeDebounceHandler();
+						}}
+					/>
 				</div>
 			</div>
 		</div>
@@ -1392,6 +1493,35 @@
 					{/if}
 				</div>
 			{:else}
+				{#if knowledge?.write_access}
+					<div class="flex flex-col gap-3 px-4 pt-2 pb-3">
+						<button
+							type="button"
+							class="flex w-full flex-col items-center gap-0.5 rounded-xl border border-dashed px-4 py-4 text-center transition {dragged
+								? 'border-gray-700 bg-gray-50 dark:border-gray-300 dark:bg-gray-850'
+								: 'border-gray-300 hover:border-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:hover:border-gray-500 dark:hover:bg-gray-850'}"
+							on:click={() => document.getElementById('files-input')?.click()}
+						>
+							<span class="text-sm text-gray-800 dark:text-gray-200">
+								↑ {$i18n.t('Drop files here or')}
+								<span class="underline">{$i18n.t('browse')}</span>
+							</span>
+							<span class="text-xs text-gray-500">
+								{$i18n.t('PDF, Word, PowerPoint, Excel, text')}{#if $config?.file?.max_size}
+									· {$i18n.t('max {{size}} MB per file', { size: $config.file.max_size })}{/if}
+							</span>
+						</button>
+
+						<UploadList
+							{uploads}
+							onRetry={retryUpload}
+							onDismiss={(u) => (uploads = uploads.filter((x) => x.itemId !== u.itemId))}
+							onClearFinished={() =>
+								(uploads = uploads.filter((u) => u.state !== 'ready' && u.state !== 'failed'))}
+						/>
+					</div>
+				{/if}
+
 				<div class="px-3 flex flex-1 items-center w-full space-x-1.5">
 					<div class="flex flex-1 items-center">
 						<div class=" self-center ml-1 mr-2">
