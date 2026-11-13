@@ -63,6 +63,22 @@
 	import FullHeightIframe from '$lib/components/common/FullHeightIframe.svelte';
 	import OutputEditView from './OutputEditView.svelte';
 	import { getOutputText, replaceOutputMessageText, type OutputItem } from './structuredOutput';
+	import RememberThis from './RememberThis.svelte';
+	import MemoriesUsed from './MemoriesUsed.svelte';
+
+	// "Used N memories": the server records which memories it added to this answer as a hidden
+	// status (ids only). Kept out of the normal status line and shown as a badge instead.
+	$: usedMemoryIds =
+		(message?.statusHistory ?? []).find((s) => s?.action === 'memory_context')?.memory_ids ?? [];
+	$: visibleStatusHistory = (message?.statusHistory ?? []).filter(
+		(s) => s?.action !== 'memory_context'
+	);
+	let showMemoriesUsed = false;
+
+	// "Remember this" needs the memory feature (same check as the sidebar's "My memory").
+	$: canRemember =
+		($config?.features?.enable_memories ?? false) &&
+		($user?.role === 'admin' || ($user?.permissions?.features?.memories ?? true));
 
 	interface MessageType {
 		id: string;
@@ -677,6 +693,20 @@
 							{model?.name ?? message.model}
 						</span>
 					</Tooltip>
+
+					{#if !readOnly && usedMemoryIds.length > 0}
+						<button
+							type="button"
+							class="ml-1 shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[0.6875rem] text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-300 dark:hover:bg-gray-800"
+							aria-expanded={showMemoriesUsed}
+							on:click={() => (showMemoriesUsed = !showMemoriesUsed)}
+						>
+							{usedMemoryIds.length === 1
+								? $i18n.t('Used 1 memory')
+								: $i18n.t('Used {{count}} memories', { count: usedMemoryIds.length })}
+							{showMemoriesUsed ? '▴' : '▾'}
+						</button>
+					{/if}
 				</Name>
 			{/if}
 
@@ -684,7 +714,7 @@
 				<div class="chat-{message.role} w-full min-w-full">
 					<div>
 						{#if model?.info?.meta?.capabilities?.status_updates ?? true}
-							<StatusHistory statusHistory={message?.statusHistory} />
+							<StatusHistory statusHistory={visibleStatusHistory} />
 						{/if}
 
 						{#if message?.files && message.files?.filter( (f) => ['image', 'file'].includes(f.type) ).length > 0}
@@ -927,6 +957,9 @@
 						</Tooltip>
 					</div>
 				{:else if !edit}
+					{#if showMemoriesUsed && !readOnly && usedMemoryIds.length > 0}
+						<MemoriesUsed memoryIds={usedMemoryIds} />
+					{/if}
 					<div
 						bind:this={buttonsContainerElement}
 						class="flex items-center justify-start overflow-x-auto whitespace-nowrap buttons text-gray-600 dark:text-gray-500 mt-0.5 [&>*]:shrink-0"
@@ -1104,6 +1137,15 @@
 											{$i18n.t('Insert')}
 										</button>
 									</Tooltip>
+								{/if}
+
+								{#if !readOnly && canRemember && visibleResponseContent}
+									<RememberThis
+										suggestion={history?.messages?.[message?.parentId]?.content ?? ''}
+										buttonClass="{isLastMessage || ($settings?.highContrastMode ?? false)
+											? 'visible'
+											: 'hover-reveal'} rounded-lg px-2 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-black/5 hover:text-black dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
+									/>
 								{/if}
 
 								{#if !readOnly && ($user?.role === 'admin' || ($user?.permissions?.chat?.tts ?? true))}

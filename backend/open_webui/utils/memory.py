@@ -286,7 +286,16 @@ def model_allows_memory(model: dict | None) -> bool:
     return ((model or {}).get('info', {}).get('meta', {}).get('capabilities') or {}).get('memory', True)
 
 
-async def add_memory_context(request, form_data: dict, user, model: dict | None = None):
+async def add_memory_context(
+    request,
+    form_data: dict,
+    user,
+    model: dict | None = None,
+    used_memory_ids: list | None = None,
+):
+    # CHOn: if `used_memory_ids` is given, it is filled with the ids of the memories that
+    # actually made it into the system prompt (after the character limits), so the chat can
+    # show "Used N memories" on the answer.
     if not model_allows_memory(model):
         return form_data
 
@@ -316,6 +325,7 @@ async def add_memory_context(request, form_data: dict, user, model: dict | None 
         log.debug(e)
 
     sections = {'user': [], 'neighborhood': [], 'context': []}
+    labelled_ids = []  # (label, memory id) for every memory considered, to report which were used
     seen_ids = set()
     for memory in sorted(
         [memory for memory in (all_memories or []) if memory.type == 'user'],
@@ -323,6 +333,7 @@ async def add_memory_context(request, form_data: dict, user, model: dict | None 
     ):
         seen_ids.add(memory.id)
         sections['user'].append(memory_label(memory))
+        labelled_ids.append((memory_label(memory), memory.id))
 
     for hint in memory_path_hints(query, all_memories):
         for memory in search_memory_rows(
@@ -335,6 +346,7 @@ async def add_memory_context(request, form_data: dict, user, model: dict | None 
                 continue
             seen_ids.add(memory.id)
             sections['neighborhood'].append(memory_label(memory))
+            labelled_ids.append((memory_label(memory), memory.id))
 
     if results and hasattr(results, 'documents') and results.documents:
         for doc_idx, doc in enumerate(results.documents[0]):
@@ -358,6 +370,8 @@ async def add_memory_context(request, form_data: dict, user, model: dict | None 
                 content = content[len(metadata.get('path')) + 1 :]
             label = f'{metadata.get("path")}: {content}' if metadata.get('path') else content
             sections[Memories.normalize_memory_type(metadata.get('type'))].append(label)
+            if memory_id:
+                labelled_ids.append((label, memory_id))
 
     parts = []
     for title, key in (
@@ -403,6 +417,13 @@ async def add_memory_context(request, form_data: dict, user, model: dict | None 
 
     memory_context = f'{MEMORY_CONTEXT_OPEN}\n{rendered}\n{MEMORY_CONTEXT_CLOSE}'
     form_data['messages'] = add_or_update_system_message(memory_context, messages, append=True)
+
+    if used_memory_ids is not None:
+        # Only count memories whose full line survived the character limits above.
+        for label, memory_id in labelled_ids:
+            if memory_id not in used_memory_ids and f'- {label}' in rendered:
+                used_memory_ids.append(memory_id)
+
     return form_data
 
 

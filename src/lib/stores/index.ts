@@ -148,6 +148,11 @@ export type ChatInputInsert =
 	| { type: 'skill'; id: string; name: string };
 export const chatInputInsert: Writable<ChatInputInsert | null> = writable(null);
 
+// "My memory" panel (sidebar) and the number shown next to it. Anything that adds or
+// deletes a memory updates memoryCount so the sidebar badge stays right.
+export const showMemoryPanel = writable(false);
+export const memoryCount: Writable<number | null> = writable(null);
+
 // Files picked in the "New knowledge base" dialog; the knowledge base page uploads them
 // (with per-file status) once it opens for the new knowledge base.
 export const pendingKnowledgeUploads: Writable<{ knowledgeId: string; files: File[] } | null> =

@@ -29,11 +29,14 @@
 		showSettings,
 		howToUseContent,
 		showHowToUse,
-		showPromptLibrary
+		showPromptLibrary,
+		showMemoryPanel,
+		memoryCount
 	} from '$lib/stores';
 	import { getHowToUse } from '$lib/apis/configs';
 	import HowToUseModal from './HowToUseModal.svelte';
 	import PromptsSkillsLibrary from './PromptsSkillsLibrary.svelte';
+	import MemoryPanel from './MemoryPanel.svelte';
 	import QuestionMarkCircle from '../icons/QuestionMarkCircle.svelte';
 	import { getMemories } from '$lib/apis/memories';
 	import BookOpen from '../icons/BookOpen.svelte';
@@ -866,11 +869,11 @@
 	const isLibraryItemActive = (item, pathname) =>
 		item.prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
-	let memoryCount: number | null = null;
+	// Shared store: the memory panel and "Remember this" update it too.
 	const refreshMemoryCount = async () => {
 		if (!canMemory) return;
 		const res = await getMemories(localStorage.token).catch(() => null);
-		memoryCount = Array.isArray(res) ? res.length : null;
+		memoryCount.set(Array.isArray(res) ? res.length : null);
 	};
 
 	// Load once, then refresh whenever the settings modal (where memories are managed) closes.
@@ -994,6 +997,7 @@
 
 	<HowToUseModal />
 	<PromptsSkillsLibrary />
+	<MemoryPanel />
 
 	<SearchModal
 		bind:show={$showSearch}
@@ -1369,8 +1373,7 @@
 										if (item.id === 'prompts-skills') {
 											showPromptLibrary.set(true);
 										} else if (item.id === 'memory') {
-											// Memories are managed in Settings > Personalization.
-											showSettings.set('personalization');
+											showMemoryPanel.set(true);
 											closeMobileSidebar();
 										} else {
 											itemClickHandler();
@@ -1395,10 +1398,10 @@
 										</div>
 									</div>
 
-									{#if item.id === 'memory' && memoryCount !== null}
+									{#if item.id === 'memory' && $memoryCount !== null}
 										<span
 											class="rounded-full bg-gray-100 dark:bg-gray-850 px-1.5 text-[0.6875rem] text-gray-500 dark:text-gray-400"
-											>{memoryCount}</span
+											>{$memoryCount}</span
 										>
 									{/if}
 								</svelte:element>

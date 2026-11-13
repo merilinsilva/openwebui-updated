@@ -2664,7 +2664,29 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 'features.memories',
                 await Config.get('user.permissions'),
             ):
-                form_data = await add_memory_context(request, form_data, user, model)
+                # CHOn: record which memories were added and tell the chat ("Used N memories").
+                # Only ids are sent and stored with the answer, never the memory text, so a
+                # shared chat doesn't reveal the owner's memories.
+                used_memory_ids = []
+                form_data = await add_memory_context(
+                    request, form_data, user, model, used_memory_ids=used_memory_ids
+                )
+                if used_memory_ids and event_emitter:
+                    try:
+                        await event_emitter(
+                            {
+                                'type': 'status',
+                                'data': {
+                                    'action': 'memory_context',
+                                    'memory_ids': used_memory_ids,
+                                    'count': len(used_memory_ids),
+                                    'done': True,
+                                    'hidden': True,
+                                },
+                            }
+                        )
+                    except Exception as e:
+                        log.debug(f'Could not emit memory_context status: {e}')
 
         if 'web_search' in features and features['web_search'] and await Config.get('web.search.enable'):
             # features is client-supplied; re-check the permission the native FC path enforces.
