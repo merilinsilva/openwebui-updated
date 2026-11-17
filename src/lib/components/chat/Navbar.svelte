@@ -258,7 +258,9 @@
 		{#if !history.currentId && !$chatId && ($banners.length > 0 || ($config?.license_metadata?.type ?? null) === 'trial' || (($config?.license_metadata?.seats ?? null) !== null && $config?.user_count > $config?.license_metadata?.seats))}
 			<div class=" w-full z-30">
 				<div
-					class=" flex flex-col gap-1 w-full max-h-28 overflow-y-auto overscroll-contain md:max-h-none md:overflow-visible"
+					class=" flex flex-col gap-1 w-full mx-auto px-3 {($settings?.widescreenMode ?? null)
+						? 'max-w-full'
+						: 'max-w-[58rem]'} max-h-28 overflow-y-auto overscroll-contain md:max-h-none md:overflow-visible"
 				>
 					{#if ($config?.license_metadata?.type ?? null) === 'trial'}
 						<Banner
