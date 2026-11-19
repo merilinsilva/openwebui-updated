@@ -87,14 +87,20 @@ class ModelMeta(BaseModel):
 
     news: str | None = None
     """
-        "Model Information": shown as a hover tooltip on the red badge below the chat
-        input on a new chat. Leave None to hide the badge.
+        "Model Information": shown as a hover tooltip on the red badge in the
+        top-right corner of the chat. Leave None to hide the badge.
     """
 
     task_prompt_ids: list[str] | None = None
     """
         Up to 4 prompt-library IDs shown, in order, as task cards on the new-chat
         screen. When unset, the 4 most recently updated prompts are shown.
+    """
+
+    quick_skill_ids: list[str] | None = None
+    """
+        Up to 6 skill IDs shown, in order, on the new-chat screen before "View all".
+        When unset, the 6 most recently updated skills are shown.
     """
 
     capabilities: dict | None = None

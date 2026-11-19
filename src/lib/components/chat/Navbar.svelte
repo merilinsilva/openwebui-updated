@@ -35,6 +35,7 @@
 	import ChatPlus from '../icons/ChatPlus.svelte';
 	import ChatCheck from '../icons/ChatCheck.svelte';
 	import Knobs from '../icons/Knobs.svelte';
+	import ModelInfoBadge from './ModelInfoBadge.svelte';
 	import { isTemporaryChatId } from '$lib/utils/chatId';
 
 	const i18n = getContext('i18n');
@@ -164,6 +165,9 @@
 				<div class="lg:mr-1 flex flex-none items-center gap-2 self-center">
 					<!-- <div class="md:hidden flex self-center w-[0.0625rem] h-5 mx-2 bg-gray-300 dark:bg-stone-700" /> -->
 
+					<!-- Top-right "Model Information" badge for the first selected model; icon-only on mobile. -->
+					<ModelInfoBadge modelId={chat?.chat?.models?.[0] ?? ''} compact={$mobile} />
+
 					{#if $user?.role === 'user' ? ($user?.permissions?.chat?.temporary ?? true) && !($user?.permissions?.chat?.temporary_enforced ?? false) : true}
 						{#if !chat?.id}
 							<Tooltip content={$i18n.t(`Temporary Chat`)}>
@@ -258,12 +262,11 @@
 		{#if !history.currentId && !$chatId && ($banners.length > 0 || ($config?.license_metadata?.type ?? null) === 'trial' || (($config?.license_metadata?.seats ?? null) !== null && $config?.user_count > $config?.license_metadata?.seats))}
 			<div class=" w-full z-30">
 				<div
-					class=" flex flex-col gap-1 w-full mx-auto px-3 {($settings?.widescreenMode ?? null)
-						? 'max-w-full'
-						: 'max-w-[58rem]'} max-h-28 overflow-y-auto overscroll-contain md:max-h-none md:overflow-visible"
+					class=" flex flex-col w-full max-h-28 overflow-y-auto overscroll-contain md:max-h-none md:overflow-visible"
 				>
 					{#if ($config?.license_metadata?.type ?? null) === 'trial'}
 						<Banner
+							fullWidth
 							banner={{
 								type: 'info',
 								title: 'Trial License',
@@ -276,6 +279,7 @@
 
 					{#if ($config?.license_metadata?.seats ?? null) !== null && $config?.user_count > $config?.license_metadata?.seats}
 						<Banner
+							fullWidth
 							banner={{
 								type: 'error',
 								title: 'License Error',
@@ -288,6 +292,7 @@
 
 					{#each $banners.filter((b) => ![...getDismissedBannerIds(), ...closedBannerIds].includes(b.id)) as banner (banner.id)}
 						<Banner
+							fullWidth
 							{banner}
 							on:dismiss={(e) => {
 								const bannerId = e.detail;

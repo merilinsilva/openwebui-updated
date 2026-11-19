@@ -3133,6 +3133,17 @@
 			return;
 		}
 
+		// Failed uploads stay listed with their cause and fix; they must be removed or retried first.
+		const failedFiles = files.filter((file) => file?.status === 'failed');
+		if (failedFiles.length > 0) {
+			toast.error(
+				$i18n.t("{{names}} couldn't be read. Remove or retry it before sending.", {
+					names: failedFiles.map((file) => file.name).join(', ')
+				})
+			);
+			return;
+		}
+
 		if (
 			($chatRequestQueues[$chatId] ?? []).some((m) =>
 				(m.files ?? []).some((file) => ['uploading', 'error'].includes(file.status))

@@ -30,6 +30,7 @@
 	import FolderPlaceholder from './Placeholder/FolderPlaceholder.svelte';
 	import FolderTitle from './Placeholder/FolderTitle.svelte';
 	import ModelValveSelect from './Placeholder/ModelValveSelect.svelte';
+	import SkillsLibraryModal from './Placeholder/SkillsLibraryModal.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -90,16 +91,21 @@
 
 	$: models = selectedModels.map((id) => $_models.find((m) => m.id === id));
 
-	// Skills the user can use (store is loaded by Chat.svelte), most recently updated first.
-	const QUICK_SKILL_COUNT = 6;
-	$: quickSkills = ($skills ?? [])
-		.filter((skill) => skill?.is_active !== false)
-		.sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))
-		.slice(0, QUICK_SKILL_COUNT);
-
 	$: activeModel = atSelectedModel ?? models[selectedModelIdx];
 
-	$: modelInfo = (activeModel?.info?.meta?.news ?? '').trim();
+	// Skills the user can use (store is loaded by Chat.svelte).
+	const QUICK_SKILL_COUNT = 6;
+	$: availableSkills = ($skills ?? []).filter((skill) => skill?.is_active !== false);
+
+	// The model's picked skills, in order; otherwise the 6 most recently updated.
+	$: quickSkillIds = activeModel?.info?.meta?.quick_skill_ids ?? [];
+	$: quickSkills = (
+		quickSkillIds.length > 0
+			? quickSkillIds.map((id) => availableSkills.find((s) => s.id === id)).filter(Boolean)
+			: [...availableSkills].sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))
+	).slice(0, QUICK_SKILL_COUNT);
+
+	let showSkillsLibrary = false;
 
 	// Task cards come from the prompt library (only prompts this user can read).
 	let libraryPrompts = [];
@@ -128,9 +134,6 @@
 		.slice(0, 4)
 		.map(toTask);
 
-	$: canViewSkills =
-		$user?.role === 'admin' || ($user?.permissions?.workspace?.skills ?? false);
-
 	const insertPrompt = (text: string) => {
 		if (!text?.trim()) return;
 		messageInput?.setText(text);
@@ -156,6 +159,12 @@
 		$selectedFolder.user_id !== $user?.id &&
 		$selectedFolder.permission !== 'write';
 </script>
+
+<SkillsLibraryModal
+	bind:show={showSkillsLibrary}
+	skills={availableSkills}
+	onSelect={(skill) => insertSkill(skill)}
+/>
 
 <div class="m-auto w-full max-w-[58rem] px-1 @2xl:px-20 translate-y-6 py-24 text-center">
 	{#if $temporaryChatEnabled}
@@ -362,14 +371,14 @@
 									</button>
 								</Tooltip>
 							{/each}
-							{#if canViewSkills}
-								<a
-									href="/workspace/skills"
-									class="ml-auto text-xs underline underline-offset-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-								>
-									{$i18n.t('View all')} →
-								</a>
-							{/if}
+							<!-- Opens every available skill as boxes with title and description. -->
+							<button
+								type="button"
+								class="ml-auto text-xs underline underline-offset-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+								on:click={() => (showSkillsLibrary = true)}
+							>
+								{$i18n.t('View all')} →
+							</button>
 						</div>
 					{/if}
 				</div>
@@ -426,44 +435,7 @@
 	{:else}
 		<div class="mx-auto max-w-2xl mt-2" in:fade={{ duration: 200, delay: 200 }}>
 			<div class="mx-5">
-				{#if modelInfo}
-					<!-- Long text would overflow the viewport: cap the height and scroll;
-					     interactive so the pointer can move in to scroll. -->
-					<Tooltip
-						content={`<div class="max-h-[60vh] overflow-y-auto pr-1">${DOMPurify.sanitize(
-							marked.parse(sanitizeResponseContent(modelInfo).replaceAll('\n', '<br>'))
-						)}</div>`}
-						placement="top"
-						theme="news"
-						interactive
-						tippyOptions={{ appendTo: () => document.body, maxWidth: 420 }}
-						className="flex justify-center mb-3"
-					>
-						<div
-							class="flex items-center gap-1.5 rounded-full bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-medium text-white shadow-sm cursor-default select-none transition"
-							role="note"
-							aria-label={$i18n.t('Model Information')}
-							in:fade={{ duration: 100 }}
-						>
-							<svg
-								class="size-4 shrink-0"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.8"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								aria-hidden="true"
-							>
-								<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1Z" />
-								<path d="M15.5 8.5a5 5 0 0 1 0 7" />
-								<path d="M18.5 5.5a9 9 0 0 1 0 13" />
-							</svg>
-							{$i18n.t('Model Information')}
-						</div>
-					</Tooltip>
-				{/if}
-
+				<!-- The "Model Information" badge now lives in the top bar (ModelInfoBadge in Navbar). -->
 				<div class="mb-3 text-xs text-gray-500 dark:text-gray-400 text-center">
 					{$i18n.t(
 						'CHOn can make mistakes. Review content carefully and do not input information that is confidential to you.'

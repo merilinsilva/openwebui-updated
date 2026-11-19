@@ -58,7 +58,8 @@
 		getUserTimezone,
 		getWeekday
 	} from '$lib/utils';
-	import { uploadFile } from '$lib/apis/files';
+	import { uploadFileWithProgress, watchFileProcessStatus } from '$lib/apis/files';
+	import { describeUploadError } from '$lib/utils/uploadStatus';
 	import { getCwd, uploadToTerminal } from '$lib/apis/terminal';
 	import { generateAutoCompletion } from '$lib/apis';
 	import { deleteFileById } from '$lib/apis/files';
@@ -703,6 +704,14 @@
 		($config?.features?.enable_memories ?? false) &&
 		($_user?.role === 'admin' || ($_user?.permissions?.features?.memories ?? true)) &&
 		($settings?.memory ?? $config?.features?.enable_memories ?? false);
+
+	// MCP servers active in this chat and signed in. Ones still needing OAuth sign-in
+	// are shown separately as amber "Click to connect" chips (pendingOAuthTools).
+	$: connectedMcpServers = (selectedToolIds ?? [])
+		.filter((id) => id.startsWith('server:mcp:'))
+		.map((id) => ({ id, tool: ($tools ?? []).find((t) => t.id === id) }))
+		.filter(({ tool }) => tool && tool.authenticated !== false)
+		.map(({ id, tool }) => ({ id, name: tool.name ?? id.split(':').at(-1) }));
 	let showSkills = false;
 
 	let loaded = false;
@@ -967,6 +976,63 @@
 		);
 	};
 
+	// Per-file upload status: Queued -> Reading -> Ready, or Failed (kept in the list with
+	// the cause, the fix and Retry). At most two files upload at once; the rest wait as Queued.
+	const MAX_PARALLEL_UPLOADS = 2;
+	let activeUploads = 0;
+	const uploadWaiters: (() => void)[] = [];
+
+	const acquireUploadSlot = (): Promise<void> => {
+		if (activeUploads < MAX_PARALLEL_UPLOADS) {
+			activeUploads++;
+			return Promise.resolve();
+		}
+		return new Promise((resolve) =>
+			uploadWaiters.push(() => {
+				activeUploads++;
+				resolve();
+			})
+		);
+	};
+
+	const releaseUploadSlot = () => {
+		activeUploads--;
+		uploadWaiters.shift()?.();
+	};
+
+	const markUploadFailed = (fileItem, error, { retryable = true } = {}) => {
+		// "failed" (not "error") so the chip stays listed without holding queued messages.
+		fileItem.status = 'failed';
+		fileItem.uploadState = 'failed';
+		fileItem.error = `${error ?? ''}`;
+		fileItem.retryable = retryable;
+		files = files;
+	};
+
+	// A file rejected before upload (too large, empty, images unsupported) still gets a chip.
+	const addFailedUpload = (file, error, retryable = false) => {
+		const fileItem: any = {
+			type: 'file',
+			file: '',
+			id: null,
+			url: '',
+			name: file.name,
+			size: file.size,
+			itemId: uuidv4()
+		};
+		files = [...files, fileItem];
+		markUploadFailed(fileItem, error, { retryable });
+	};
+
+	const retryUpload = (fileItem) => {
+		files = files.filter((item) => item?.itemId !== fileItem.itemId);
+		if (fileItem.retryFile) {
+			uploadFileHandler(fileItem.retryFile, fileItem.retryProcess ?? true, fileItem.retryItemData ?? {});
+		}
+	};
+
+	$: failedUploads = files.filter((f) => f?.uploadState === 'failed');
+
 	const uploadFileHandler = async (file, process = true, itemData = {}) => {
 		if ($_user?.role !== 'admin' && !($_user?.permissions?.chat?.file_upload ?? true)) {
 			toast.error($i18n.t('You do not have permission to upload files.'));
@@ -989,9 +1055,14 @@
 			name: file.name,
 			collection_name: '',
 			status: 'uploading',
+			uploadState: 'queued',
 			size: file.size,
 			error: '',
 			itemId: tempItemId,
+			// Kept so a failed upload can be retried from its chip.
+			retryFile: file,
+			retryProcess: process,
+			retryItemData: itemData,
 			// Stamp the user's default upload mode so the sent payload carries it;
 			// the per-file toggle in FileItemModal can still override it afterwards.
 			...($settings?.defaultUploadContext === 'full' ? { context: 'full' } : {}),
@@ -999,132 +1070,138 @@
 		};
 
 		if (fileItem.size == 0) {
-			toast.error($i18n.t('You cannot upload an empty file.'));
+			files = [...files, fileItem];
+			markUploadFailed(fileItem, 'empty file', { retryable: false });
 			return null;
 		}
 
 		files = [...files, fileItem];
 
-		if (filesystemUploadTerminal) {
-			try {
-				const cwd =
-					(
-						await getCwd(
-							filesystemUploadTerminal.url,
-							filesystemUploadTerminal.key,
-							chatId || undefined
-						)
-					)?.cwd || '/';
-				const uploadedFile = await uploadToTerminal(
-					filesystemUploadTerminal.url,
-					filesystemUploadTerminal.key,
-					cwd,
-					file,
-					chatId || undefined
-				);
-
-				if (uploadedFile) {
-					fileItem.type = 'filesystem';
-					fileItem.status = 'uploaded';
-					fileItem.id = uploadedFile.path;
-					fileItem.path = uploadedFile.path;
-					fileItem.url = uploadedFile.path;
-					fileItem.size = uploadedFile.size ?? file.size;
-					fileItem.file = uploadedFile;
-					files = files;
-					showFileNavDir.set(uploadedFile.path);
-				} else {
-					fileItem.status = 'error';
-					fileItem.error = $i18n.t('Failed to upload file.');
-					toast.error(fileItem.error);
-					files = files.filter((item) => item?.itemId !== tempItemId);
-				}
-			} catch (e) {
-				fileItem.status = 'error';
-				fileItem.error = `${e}`;
-				toast.error(`${e}`);
-				files = files.filter((item) => item?.itemId !== tempItemId);
-			} finally {
-				onUpdate({ file: fileItem });
-			}
-			return;
+		await acquireUploadSlot();
+		// Removed by the user while it was waiting in the queue.
+		if (!files.some((item) => item?.itemId === tempItemId)) {
+			releaseUploadSlot();
+			return null;
 		}
+		fileItem.uploadState = 'reading';
+		files = files;
 
-		if (!$temporaryChatEnabled) {
-			try {
-				// If the file is an audio file, provide the language for STT.
-				let metadata = null;
-				if (
-					(file.type.startsWith('audio/') || file.type.startsWith('video/')) &&
-					$settings?.audio?.stt?.language
-				) {
-					metadata = {
-						language: $settings?.audio?.stt?.language
-					};
+		try {
+			if (filesystemUploadTerminal) {
+				try {
+					const cwd =
+						(
+							await getCwd(
+								filesystemUploadTerminal.url,
+								filesystemUploadTerminal.key,
+								chatId || undefined
+							)
+						)?.cwd || '/';
+					const uploadedFile = await uploadToTerminal(
+						filesystemUploadTerminal.url,
+						filesystemUploadTerminal.key,
+						cwd,
+						file,
+						chatId || undefined
+					);
+
+					if (uploadedFile) {
+						fileItem.type = 'filesystem';
+						fileItem.status = 'uploaded';
+						fileItem.uploadState = 'ready';
+						fileItem.id = uploadedFile.path;
+						fileItem.path = uploadedFile.path;
+						fileItem.url = uploadedFile.path;
+						fileItem.size = uploadedFile.size ?? file.size;
+						fileItem.file = uploadedFile;
+						files = files;
+						showFileNavDir.set(uploadedFile.path);
+					} else {
+						markUploadFailed(fileItem, $i18n.t('Failed to upload file.'));
+					}
+				} catch (e) {
+					markUploadFailed(fileItem, e);
+				} finally {
+					onUpdate({ file: fileItem });
 				}
+				return;
+			}
 
-				// During the file upload, file content is automatically extracted.
-				const uploadedFile = await uploadFile(localStorage.token, file, metadata, process);
-
-				if (uploadedFile) {
-					console.log('File upload completed:', {
-						id: uploadedFile.id,
-						name: fileItem.name,
-						collection: uploadedFile?.meta?.collection_name
-					});
-
-					if (uploadedFile.error) {
-						console.warn('File upload warning:', uploadedFile.error);
-						toast.warning(uploadedFile.error);
+			if (!$temporaryChatEnabled) {
+				try {
+					// If the file is an audio file, provide the language for STT.
+					let metadata = null;
+					if (
+						(file.type.startsWith('audio/') || file.type.startsWith('video/')) &&
+						$settings?.audio?.stt?.language
+					) {
+						metadata = {
+							language: $settings?.audio?.stt?.language
+						};
 					}
 
-					fileItem.status = 'uploaded';
+					const uploadedFile = await uploadFileWithProgress(
+						localStorage.token,
+						file,
+						metadata,
+						() => {},
+						process
+					);
+
+					if (!uploadedFile?.id) {
+						markUploadFailed(fileItem, uploadedFile?.error ?? $i18n.t('Failed to upload file.'));
+						return;
+					}
+
 					fileItem.file = uploadedFile;
 					fileItem.id = uploadedFile.id;
 					fileItem.collection_name =
 						uploadedFile?.meta?.collection_name || uploadedFile?.collection_name;
 					fileItem.content_type = uploadedFile.meta?.content_type || uploadedFile.content_type;
 					fileItem.url = `${uploadedFile.id}`;
-
 					files = files;
-				} else {
-					fileItem.status = 'error';
-					fileItem.error = $i18n.t('Failed to upload file.');
-					files = files.filter((item) => item?.itemId !== tempItemId);
+
+					// The server extracts the text after the upload; wait for it so "Ready" means
+					// the model can actually read the file.
+					if (process) {
+						const last = await watchFileProcessStatus(localStorage.token, uploadedFile.id);
+						if (last?.status === 'failed') {
+							markUploadFailed(fileItem, last.error ?? '');
+							return;
+						}
+						if (last?.status === 'not_found') {
+							markUploadFailed(fileItem, 'not_found');
+							return;
+						}
+					}
+
+					fileItem.status = 'uploaded';
+					fileItem.uploadState = 'ready';
+					files = files;
+				} catch (e) {
+					markUploadFailed(fileItem, e);
+				} finally {
+					onUpdate({ file: fileItem });
 				}
-			} catch (e) {
-				fileItem.status = 'error';
-				fileItem.error = `${e}`;
-				toast.error(`${e}`);
-				files = files.filter((item) => item?.itemId !== tempItemId);
-			} finally {
-				onUpdate({ file: fileItem });
-			}
-		} else {
-			// If temporary chat is enabled, we just add the file to the list without uploading it.
-
-			const content = await extractContentFromFile(file).catch((error) => {
-				toast.error(
-					$i18n.t('Failed to extract content from the file: {{error}}', { error: error })
-				);
-				return null;
-			});
-
-			if (content === null) {
-				fileItem.status = 'error';
-				fileItem.error = $i18n.t('Failed to extract content from the file.');
-				toast.error($i18n.t('Failed to extract content from the file.'));
-				files = files.filter((item) => item?.itemId !== tempItemId);
-				onUpdate({ file: fileItem });
-				return null;
 			} else {
-				console.log('Extracted content from file:', {
-					name: file.name,
-					size: file.size,
-					content: content
+				// Temporary chat: the file isn't stored; its text is extracted in the browser.
+				let extractError = '';
+				const content = await extractContentFromFile(file).catch((error) => {
+					extractError = `${error}`;
+					return null;
 				});
 
+				if (content === null) {
+					markUploadFailed(
+						fileItem,
+						extractError || $i18n.t('Failed to extract content from the file.')
+					);
+					onUpdate({ file: fileItem });
+					return null;
+				}
+
 				fileItem.status = 'uploaded';
+				fileItem.uploadState = 'ready';
 				fileItem.type = 'text';
 				fileItem.content = content;
 				fileItem.id = uuidv4(); // Temporary ID for the file
@@ -1132,6 +1209,8 @@
 				files = files;
 				onUpdate({ file: fileItem });
 			}
+		} finally {
+			releaseUploadSlot();
 		}
 	};
 
@@ -1166,17 +1245,13 @@
 					fileSize: file.size,
 					maxSize: ($config?.file?.max_size ?? 0) * 1024 * 1024
 				});
-				toast.error(
-					$i18n.t(`File size should not exceed {{maxSize}} MB.`, {
-						maxSize: $config?.file?.max_size
-					})
-				);
+				addFailedUpload(file, 'file too large');
 				return;
 			}
 
 			if (file['type'].startsWith('image/')) {
 				if (visionCapableModels.length === 0) {
-					toast.error($i18n.t('Selected model(s) do not support image inputs'));
+					addFailedUpload(file, 'image inputs not supported by the selected model');
 					return;
 				}
 
@@ -1965,10 +2040,11 @@
 								</div>
 							{/if}
 
-							{#if files.length > 0 || memoryOn}
+							{#if files.length > 0 || memoryOn || connectedMcpServers.length > 0}
 								<div
 									class="mx-2 mt-2 pb-1 flex items-center flex-wrap gap-1.5"
 									dir={$settings?.chatDirection ?? 'auto'}
+									aria-live="polite"
 								>
 									{#each files as file, fileIdx}
 										{#if file?.type === 'collection'}
@@ -2063,7 +2139,8 @@
 												name={file.name}
 												type={file.type}
 												size={file?.size}
-												loading={file.status === 'uploading'}
+												loading={file.status === 'uploading' && file.uploadState !== 'queued'}
+												uploadState={file.uploadState ?? null}
 												dismissible={true}
 												edit={true}
 												small={true}
@@ -2099,7 +2176,70 @@
 											</button>
 										</Tooltip>
 									{/if}
+
+									{#each connectedMcpServers as server (server.id)}
+										<!-- Active context: a connected MCP server whose tools this chat can use. -->
+										<Tooltip
+											content={$i18n.t('{{name}} is connected and available in this chat', {
+												name: server.name
+											})}
+											placement="top"
+											allowHTML={false}
+										>
+											<div
+												class="flex items-center gap-1.5 h-7 rounded-full border border-green-200 dark:border-green-900 bg-green-50/60 dark:bg-green-950/20 pl-2.5 pr-1 text-xs text-gray-800 dark:text-gray-100"
+											>
+												<span class="size-1.5 rounded-full bg-green-500" aria-hidden="true"></span>
+												<span class="max-w-40 truncate">{server.name}</span>
+												<button
+													type="button"
+													class="flex size-5 items-center justify-center rounded-full text-gray-500 hover:text-gray-900 dark:hover:text-white"
+													aria-label={$i18n.t('Turn off {{name}} for this chat', { name: server.name })}
+													on:click={() => {
+														selectedToolIds = selectedToolIds.filter((id) => id !== server.id);
+													}}
+												>
+													<XMark className="size-3" />
+												</button>
+											</div>
+										</Tooltip>
+									{/each}
 								</div>
+							{/if}
+
+							{#if failedUploads.length > 0}
+								<!-- Each failed file: what went wrong and what to do about it. -->
+								<ul class="mx-3 mb-1 flex flex-col gap-1" aria-live="polite">
+									{#each failedUploads as failed (failed.itemId)}
+										{@const d = describeUploadError((k, o) => $i18n.t(k, o), failed.error, {
+											maxSizeMb: $config?.file?.max_size ?? null,
+											context: 'chat'
+										})}
+										<li class="text-xs leading-snug">
+											<span class="font-medium text-gray-900 dark:text-gray-100">{failed.name}:</span>
+											<span class="text-red-700 dark:text-red-400">{d.cause}</span>
+											<span class="text-gray-600 dark:text-gray-400">{d.fix}</span>
+											{#if failed.retryable && failed.retryFile}
+												<button
+													type="button"
+													class="ml-1 font-medium underline hover:text-gray-600 dark:hover:text-gray-300"
+													on:click={() => retryUpload(failed)}
+												>
+													{$i18n.t('Retry')}
+												</button>
+											{/if}
+											<button
+												type="button"
+												class="ml-1 text-gray-500 underline hover:text-gray-800 dark:hover:text-gray-200"
+												on:click={() => {
+													files = files.filter((item) => item?.itemId !== failed.itemId);
+												}}
+											>
+												{$i18n.t('Remove')}
+											</button>
+										</li>
+									{/each}
+								</ul>
 							{/if}
 
 							<div class="px-2 relative">

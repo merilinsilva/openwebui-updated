@@ -15,6 +15,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import { config } from '$lib/stores';
+	import { describeUploadError, uploadStateBadge } from '$lib/utils/uploadStatus';
 
 	const i18n = getContext('i18n');
 
@@ -25,96 +26,14 @@
 
 	$: finishedCount = uploads.filter((u) => u.state === 'ready' || u.state === 'failed').length;
 
-	// Turns the server's technical error into "what happened" and "what to do".
-	const describeError = (raw = ''): { cause: string; fix: string } => {
-		const e = raw.toLowerCase();
-		if (e.includes('content provided is empty') || e.includes('no text')) {
-			return {
-				cause: $i18n.t('No text found. This looks like a scanned image.'),
-				fix: $i18n.t('Upload a searchable PDF (export it again, or run OCR on it first).')
-			};
-		}
-		if (e.includes('embedding model') || e.includes('embedding_engine')) {
-			return {
-				cause: $i18n.t("CHOn can't index documents right now: no embedding model is set up."),
-				fix: $i18n.t(
-					'This is a server setting, not a problem with your file. Contact the CHOn team (Admin Settings > Documents).'
-				)
-			};
-		}
-		if (e.includes('duplicate content')) {
-			return {
-				cause: $i18n.t('This file is already in the knowledge base.'),
-				fix: $i18n.t('Nothing to do. Remove the old copy first if you want to replace it.')
-			};
-		}
-		if (e.includes('not supported')) {
-			return {
-				cause: $i18n.t("CHOn can't read this file type."),
-				fix: $i18n.t('Save it as PDF, Word, PowerPoint, Excel or text and upload it again.')
-			};
-		}
-		if (e.includes('empty file')) {
-			return {
-				cause: $i18n.t('The file is empty.'),
-				fix: $i18n.t('Check that you picked the right file.')
-			};
-		}
-		if (e.includes('size') || e.includes('too large') || e.includes('413')) {
-			return {
-				cause: $i18n.t('The file is too large.'),
-				fix: $config?.file?.max_size
-					? $i18n.t('Split or compress it to under {{size}} MB.', { size: $config.file.max_size })
-					: $i18n.t('Split or compress it, then upload the parts.')
-			};
-		}
-		if (e.includes('timeout') || e.includes('timed out')) {
-			return {
-				cause: $i18n.t('Reading the file took too long.'),
-				fix: $i18n.t('Try again, or split it into smaller files.')
-			};
-		}
-		if (e.includes('network')) {
-			return {
-				cause: $i18n.t('The upload was interrupted.'),
-				fix: $i18n.t('Check your connection and try again.')
-			};
-		}
-		if (e.includes('permission') || e.includes('access')) {
-			return {
-				cause: $i18n.t("You don't have permission to add files here."),
-				fix: $i18n.t('Ask the owner of this knowledge base for edit access.')
-			};
-		}
-		return {
-			cause: raw ? raw : $i18n.t('The file could not be read.'),
-			fix: $i18n.t('Try again. If it keeps failing, contact the CHOn team.')
-		};
-	};
+	// Shared with chat uploads so both explain failures the same way.
+	const describeError = (raw = '') =>
+		describeUploadError((k, o) => $i18n.t(k, o), raw, {
+			maxSizeMb: $config?.file?.max_size ?? null,
+			context: 'knowledge'
+		});
 
-	const badge = (u: UploadEntry) =>
-		({
-			queued: {
-				label: $i18n.t('Queued'),
-				cls: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
-			},
-			uploading: {
-				label: `${$i18n.t('Uploading')} ${u.progress ?? 0}%`,
-				cls: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
-			},
-			reading: {
-				label: $i18n.t('Reading'),
-				cls: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
-			},
-			ready: {
-				label: `✓ ${$i18n.t('Ready')}`,
-				cls: 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300'
-			},
-			failed: {
-				label: `✕ ${$i18n.t('Failed')}`,
-				cls: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
-			}
-		})[u.state];
+	const badge = (u: UploadEntry) => uploadStateBadge((k, o) => $i18n.t(k, o), u.state, u.progress ?? null);
 </script>
 
 {#if uploads.length > 0}

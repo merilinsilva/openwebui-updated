@@ -25,31 +25,42 @@
 		timestamp: Math.floor(Date.now() / 1000)
 	};
 	export let className = 'mx-2';
+	// Edge-to-edge strip tinted entirely in the banner type's colour (used above the chat).
+	export let fullWidth = false;
 
 	export let dismissed = false;
 
 	let mounted = false;
 
-	// Container (background + border) and icon colours per banner type
-	const styles: Record<string, { container: string; icon: string }> = {
-		info: {
-			container: 'bg-blue-50/90 border-blue-200 dark:bg-blue-950/70 dark:border-blue-800/60',
-			icon: 'text-blue-600 dark:text-blue-300'
-		},
-		success: {
-			container: 'bg-green-50/90 border-green-200 dark:bg-green-950/70 dark:border-green-800/60',
-			icon: 'text-green-600 dark:text-green-300'
-		},
-		warning: {
-			container:
-				'bg-yellow-50/90 border-yellow-200 dark:bg-yellow-950/70 dark:border-yellow-800/60',
-			icon: 'text-yellow-600 dark:text-yellow-300'
-		},
-		error: {
-			container: 'bg-red-50/90 border-red-200 dark:bg-red-950/70 dark:border-red-800/60',
-			icon: 'text-red-600 dark:text-red-300'
-		}
-	};
+	// Container (background + border), icon and full-width text colours per banner type
+	const styles: Record<string, { container: string; icon: string; strong: string; text: string }> =
+		{
+			info: {
+				container: 'bg-blue-50/90 border-blue-200 dark:bg-blue-950/70 dark:border-blue-800/60',
+				icon: 'text-blue-600 dark:text-blue-300',
+				strong: 'bg-blue-100 border-blue-200 dark:bg-blue-950 dark:border-blue-800/60',
+				text: 'text-blue-900 dark:text-blue-100'
+			},
+			success: {
+				container: 'bg-green-50/90 border-green-200 dark:bg-green-950/70 dark:border-green-800/60',
+				icon: 'text-green-600 dark:text-green-300',
+				strong: 'bg-green-100 border-green-200 dark:bg-green-950 dark:border-green-800/60',
+				text: 'text-green-900 dark:text-green-100'
+			},
+			warning: {
+				container:
+					'bg-yellow-50/90 border-yellow-200 dark:bg-yellow-950/70 dark:border-yellow-800/60',
+				icon: 'text-yellow-600 dark:text-yellow-300',
+				strong: 'bg-amber-100 border-amber-200 dark:bg-amber-950 dark:border-amber-800/60',
+				text: 'text-amber-900 dark:text-amber-100'
+			},
+			error: {
+				container: 'bg-red-50/90 border-red-200 dark:bg-red-950/70 dark:border-red-800/60',
+				icon: 'text-red-600 dark:text-red-300',
+				strong: 'bg-red-100 border-red-200 dark:bg-red-950 dark:border-red-800/60',
+				text: 'text-red-900 dark:text-red-100'
+			}
+		};
 
 	const icons: Record<string, typeof InfoCircle> = {
 		info: InfoCircle,
@@ -87,24 +98,37 @@
 {#if !dismissed}
 	{#if mounted}
 		<div
-			class="{className} {style.container} relative z-30 flex items-start gap-2 rounded-md border px-3 py-2 text-gray-800 backdrop-blur-xl dark:text-gray-100"
+			class="{fullWidth
+				? `${style.strong} ${style.text} w-full border-b px-4`
+				: `${className} ${style.container} rounded-md border px-3 text-gray-800 dark:text-gray-100`} relative z-30 flex items-start gap-2 py-2 backdrop-blur-xl"
 			role={bannerType === 'error' || bannerType === 'warning' ? 'alert' : 'status'}
 			transition:fade={{ delay: 100, duration: 300 }}
 		>
-			<div class="flex shrink-0 pt-px {style.icon}" title={typeLabel}>
+			<div
+				class="flex shrink-0 items-center gap-1.5 pt-px {fullWidth ? '' : style.icon}"
+				title={typeLabel}
+			>
 				<svelte:component this={icon} className="size-4" strokeWidth="2" />
-				<span class="sr-only">{typeLabel}</span>
+				{#if fullWidth}
+					<span class="text-xs font-semibold uppercase tracking-wide">{typeLabel}</span>
+				{:else}
+					<span class="sr-only">{typeLabel}</span>
+				{/if}
 			</div>
 
 			<div class="flex min-w-0 flex-1 flex-col gap-1 md:flex-row md:items-center">
-				<div class="max-h-60 flex-1 overflow-y-auto text-xs text-gray-700 dark:text-white">
+				<div
+					class="max-h-60 flex-1 overflow-y-auto text-xs {fullWidth
+						? ''
+						: 'text-gray-700 dark:text-white'}"
+				>
 					{@html DOMPurify.sanitize(marked.parse((banner?.content ?? '').replace(/\n/g, '<br>')))}
 				</div>
 
 				{#if banner.url}
 					<div class="group flex w-fit items-center">
 						<a
-							class="text-xs font-normal text-gray-700 underline dark:text-white"
+							class="text-xs font-normal underline {fullWidth ? '' : 'text-gray-700 dark:text-white'}"
 							href={banner.url}
 							target="_blank"
 							rel="noopener noreferrer"
@@ -136,7 +160,9 @@
 				on:click={() => {
 					dismiss(banner.id);
 				}}
-				class="-mt-0.5 shrink-0 leading-none text-gray-400 hover:text-gray-700 dark:hover:text-white"
+				class="-mt-0.5 shrink-0 leading-none {fullWidth
+					? 'opacity-60 hover:opacity-100'
+					: 'text-gray-400 hover:text-gray-700 dark:hover:text-white'}"
 				>&times;</button
 			>
 		</div>

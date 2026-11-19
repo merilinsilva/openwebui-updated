@@ -3,6 +3,7 @@
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 
 	import { formatFileSize } from '$lib/utils';
+	import { uploadStateBadge, type UploadState } from '$lib/utils/uploadStatus';
 	import { settings, showFileNavPath } from '$lib/stores';
 
 	import FileItemModal from './FileItemModal.svelte';
@@ -31,6 +32,12 @@
 	export let type: string;
 	export let size: number;
 
+	// Optional upload status for chat attachments: shows a Queued / Reading / Ready / Failed badge.
+	export let uploadState: UploadState | null = null;
+	$: statusBadge = uploadState
+		? uploadStateBadge((k, o) => $i18n.t(k, o), uploadState === 'uploading' ? 'reading' : uploadState)
+		: null;
+
 	import DocumentPage from '../icons/DocumentPage.svelte';
 	import Database from '../icons/Database.svelte';
 	import PageEdit from '../icons/PageEdit.svelte';
@@ -52,7 +59,9 @@
 {/if}
 
 <button
-	class="relative group {className} flex items-center {colorClassName} {small
+	class="relative group {className} flex items-center {uploadState === 'failed'
+		? 'bg-red-50/60 dark:bg-red-950/20 border border-red-300 dark:border-red-900'
+		: colorClassName} {small
 		? 'h-8 gap-1.5 rounded-xl px-2.5 text-[0.8125rem] leading-5'
 		: 'gap-1 rounded-2xl p-1.5'} text-left"
 	type="button"
@@ -160,7 +169,12 @@
 				{:else}
 					<span class=" capitalize line-clamp-1">{type}</span>
 				{/if}
-				{#if size}
+				{#if statusBadge}
+					<span
+						class="shrink-0 whitespace-nowrap rounded-full px-1.5 py-px text-[0.625rem] font-medium {statusBadge.cls}"
+						>{statusBadge.label}</span
+					>
+				{:else if size}
 					<span class="capitalize">{formatFileSize(size)}</span>
 				{/if}
 			</div>
@@ -174,7 +188,12 @@
 			<div class="flex min-w-0 flex-1 items-center overflow-hidden">
 				<div class="flex min-w-0 flex-1 items-center justify-between dark:text-gray-100">
 					<div class="min-w-0 flex-1 truncate pr-1 font-normal">{decodeString(name)}</div>
-					{#if size}
+					{#if statusBadge}
+						<span
+							class="shrink-0 whitespace-nowrap rounded-full px-1.5 py-px text-[0.625rem] font-medium {statusBadge.cls}"
+							>{statusBadge.label}</span
+						>
+					{:else if size}
 						<div class="max-w-[35%] shrink-0 truncate text-[0.6875rem] capitalize text-gray-500">
 							{formatFileSize(size)}
 						</div>

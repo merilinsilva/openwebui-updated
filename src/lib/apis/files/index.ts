@@ -125,7 +125,8 @@ export const uploadFileWithProgress = (
 	token: string,
 	file: File,
 	metadata: object | null,
-	onProgress: (percent: number) => void = () => {}
+	onProgress: (percent: number) => void = () => {},
+	process: boolean | null = null
 ): Promise<any> =>
 	new Promise((resolve, reject) => {
 		const data = new FormData();
@@ -135,7 +136,10 @@ export const uploadFileWithProgress = (
 		}
 
 		const xhr = new XMLHttpRequest();
-		xhr.open('POST', `${WEBUI_API_BASE_URL}/files/`);
+		xhr.open(
+			'POST',
+			`${WEBUI_API_BASE_URL}/files/${process === null ? '' : `?process=${String(process)}`}`
+		);
 		xhr.setRequestHeader('Accept', 'application/json');
 		xhr.setRequestHeader('authorization', `Bearer ${token}`);
 

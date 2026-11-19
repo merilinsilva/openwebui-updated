@@ -28,6 +28,7 @@
 	import DefaultFiltersSelector from './DefaultFiltersSelector.svelte';
 	import PromptSuggestions from './PromptSuggestions.svelte';
 	import TaskPrompts from './TaskPrompts.svelte';
+	import QuickSkills from './QuickSkills.svelte';
 	import TerminalSelector from './TerminalSelector.svelte';
 	import TTSVoiceInput from './TTSVoiceInput.svelte';
 	import AccessControlModal from '../common/AccessControlModal.svelte';
@@ -88,6 +89,7 @@
 			description: '',
 			suggestion_prompts: null,
 			task_prompt_ids: [],
+			quick_skill_ids: [],
 			tags: []
 		},
 		params: {
@@ -378,6 +380,16 @@
 		}
 		// Hand-written task cards were replaced by prompt-library picks.
 		delete info.meta.tasks;
+
+		// Skills shown on the new-chat screen before "View all", in display order.
+		const quickSkillIds = [
+			...new Set((info.meta.quick_skill_ids ?? []).filter((id) => typeof id === 'string' && id))
+		].slice(0, 6);
+		if (quickSkillIds.length > 0) {
+			info.meta.quick_skill_ids = quickSkillIds;
+		} else {
+			delete info.meta.quick_skill_ids;
+		}
 
 		info.params.stop = params.stop
 			? (typeof params.stop === 'string' ? params.stop.split(',') : params.stop).filter((s) =>
@@ -862,7 +874,7 @@
 							/>
 							<p class="text-xs text-gray-500">
 								{$i18n.t(
-									'Shown when users hover the red "Model Information" badge below the message box on a new chat. Leave empty to hide the badge.'
+									'Shown when users hover the red "Model Information" badge in the top-right corner of the chat. Leave empty to hide the badge.'
 								)}
 							</p>
 						</div>
@@ -943,6 +955,11 @@
 						<div class="flex flex-col gap-1.5">
 							<div class="text-sm font-semibold">{$i18n.t('Task cards')}</div>
 							<TaskPrompts bind:promptIds={info.meta.task_prompt_ids} />
+						</div>
+
+						<div class="flex flex-col gap-1.5">
+							<div class="text-sm font-semibold">{$i18n.t('Skills')}</div>
+							<QuickSkills bind:skillIds={info.meta.quick_skill_ids} />
 						</div>
 
 						<div class="flex flex-col gap-1.5">
