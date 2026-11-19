@@ -11,6 +11,7 @@
 	import Modal from './common/Modal.svelte';
 	import { updateUserSettings } from '$lib/apis/users';
 	import XMark from '$lib/components/icons/XMark.svelte';
+	import Spinner from '$lib/components/common/Spinner.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -80,88 +81,89 @@
 		const entries = changelog?.[version]?.[section];
 		return Array.isArray(entries) ? entries : [];
 	};
+
+	// Section labels stay neutral like the other dialogs; a small dot carries the type colour.
+	const sectionDotClass = (section: string) =>
+		section === 'added'
+			? 'bg-blue-500'
+			: section === 'fixed'
+				? 'bg-green-500'
+				: section === 'changed'
+					? 'bg-amber-500'
+					: section === 'removed'
+						? 'bg-red-500'
+						: 'bg-gray-400';
 </script>
 
-<Modal
-	bind:show
-	size="lg"
-	className="bg-white dark:bg-gray-900 rounded-3xl overflow-hidden"
-	containerClassName="p-3"
->
-	<div class="flex max-h-[58vh] flex-col">
-		<div
-			class="flex shrink-0 items-start justify-between gap-4 px-4 pb-2.5 pt-3.5 dark:text-white text-black"
-		>
+<Modal bind:show size="lg" className="bg-white dark:bg-gray-900 rounded-2xl overflow-hidden">
+	<div class="flex max-h-[80dvh] flex-col text-gray-900 dark:text-gray-100">
+		<div class="flex shrink-0 items-start justify-between gap-3 px-5 pt-4 pb-3">
 			<div class="min-w-0">
 				<!-- LICENSE covers this Open WebUI release identifier.
 				Do not alter, remove, obscure, or replace it except as LICENSE permits:
 				https://docs.openwebui.com/license. -->
-				<h2 class="m-0 truncate text-base font-normal">
+				<h2 class="truncate text-base font-semibold">
 					{$i18n.t("What's New in")}
 					{$WEBUI_NAME}
 				</h2>
-				<div class="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-					<span>{$i18n.t('Release Notes')}</span>
-					<span class="h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-700"></span>
-					<span>v{WEBUI_VERSION}</span>
-				</div>
+				<p class="mt-0.5 text-xs text-gray-500">
+					{$i18n.t('Release Notes')} · v{WEBUI_VERSION}
+				</p>
 			</div>
 
 			<button
-				class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-white/10 dark:hover:text-gray-200"
+				class="shrink-0 rounded-lg p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+				type="button"
 				on:click={closeModal}
 				aria-label={$i18n.t('Close')}
 			>
-				<XMark className={'size-4'} />
+				<XMark className="size-4" />
 			</button>
 		</div>
 
 		<div
-			class="min-h-0 flex-1 overflow-y-auto px-4 py-2 text-gray-700 scrollbar-hidden dark:text-gray-100"
+			class="min-h-0 flex-1 overflow-y-auto border-t border-gray-200 px-5 scrollbar-hidden dark:border-gray-800"
 		>
 			{#if changelog}
-				<div class="space-y-4">
+				<div class="divide-y divide-gray-200 dark:divide-gray-800">
 					{#each Object.keys(changelog) as version}
-						<section class="pr-1">
-							<div class="mb-2">
-								<h3 class="m-0 text-sm font-normal text-gray-950 dark:text-white">v{version}</h3>
-								<div class="mt-0.5 text-[0.6875rem] text-gray-400 dark:text-gray-500">
+						<section class="py-4">
+							<div class="mb-3 flex items-baseline gap-2">
+								<h3 class="text-sm font-semibold">v{version}</h3>
+								{#if version === WEBUI_VERSION}
+									<span
+										class="rounded-md border border-gray-300 px-1.5 py-px text-[0.6875rem] font-medium text-gray-600 dark:border-gray-700 dark:text-gray-300"
+									>
+										{$i18n.t('Current')}
+									</span>
+								{/if}
+								<span class="ml-auto shrink-0 text-xs text-gray-500">
 									{formatDate(changelog[version].date)}
-								</div>
+								</span>
 							</div>
 
 							{#each Object.keys(changelog[version]).filter((section) => section !== 'date') as section}
-								<div class="mb-3 w-full">
+								<div class="mb-4 last:mb-0">
 									<div
-										class="mb-2 text-[0.6875rem] font-normal uppercase tracking-wide {section ===
-										'added'
-											? 'text-blue-600 dark:text-blue-300'
-											: section === 'fixed'
-												? 'text-green-600 dark:text-green-300'
-												: section === 'changed'
-													? 'text-yellow-700 dark:text-yellow-300'
-													: section === 'removed'
-														? 'text-red-600 dark:text-red-300'
-														: 'text-gray-500 dark:text-gray-400'}"
+										class="mb-1.5 flex items-center gap-1.5 text-[0.6875rem] font-semibold tracking-wide uppercase text-gray-500 dark:text-gray-400"
 									>
+										<span
+											class="size-1.5 rounded-full {sectionDotClass(section)}"
+											aria-hidden="true"
+										></span>
 										{section}
 									</div>
 
-									<div class="space-y-2 text-[0.8125rem] leading-relaxed">
+									<ul class="space-y-2 text-sm leading-relaxed">
 										{#each getSectionEntries(version, section) as entry}
-											<div class="flex gap-2.5">
-												<span
-													class="mt-[0.6em] h-1 w-1 shrink-0 rounded-full bg-gray-300 dark:bg-gray-700"
-												></span>
-												<div
-													class="min-w-0 markdown-prose-sm list-none !max-w-none !text-[0.8125rem] text-gray-600 dark:text-gray-300 [&_*]:!my-0 [&_b]:!font-normal [&_strong]:!font-normal"
-												>
-													<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-													{@html DOMPurify.sanitize(entry?.raw)}
-												</div>
-											</div>
+											<li
+												class="markdown-prose-sm !max-w-none !text-sm text-gray-600 dark:text-gray-400 [&_*]:!my-0 [&_a]:text-gray-700 dark:[&_a]:text-gray-300 [&_a:hover]:text-gray-900 dark:[&_a:hover]:text-gray-100 [&_b]:font-semibold [&_b]:text-gray-900 dark:[&_b]:text-gray-100 [&_strong]:font-semibold [&_strong]:text-gray-900 dark:[&_strong]:text-gray-100"
+											>
+												<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+												{@html DOMPurify.sanitize(entry?.raw)}
+											</li>
 										{/each}
-									</div>
+									</ul>
 								</div>
 							{/each}
 						</section>
@@ -169,34 +171,35 @@
 				</div>
 			{:else if error}
 				<div class="flex flex-col items-center justify-center gap-3 py-16 text-center">
-					<p class="text-sm text-gray-500 dark:text-gray-400">
+					<p class="text-sm text-gray-600 dark:text-gray-400">
 						{$i18n.t('Could not load release notes.')}
 					</p>
 					<button
+						type="button"
 						on:click={() => {
 							error = false;
 							init();
 						}}
-						class="text-sm font-normal text-gray-700 transition hover:text-black dark:text-gray-300 dark:hover:text-white"
+						class="rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
 					>
 						{$i18n.t('Retry')}
 					</button>
 				</div>
 			{:else}
-				<div
-					class="flex items-center justify-center py-16 text-sm text-gray-400 dark:text-gray-500"
-				>
+				<div class="flex flex-col items-center justify-center gap-2 py-16 text-sm text-gray-500">
+					<Spinner className="size-5" />
 					{$i18n.t('Loading release notes...')}
 				</div>
 			{/if}
 		</div>
 
-		<div class="flex shrink-0 justify-end px-4 pb-3.5 pt-1.5 text-sm">
+		<div class="flex shrink-0 justify-end border-t border-gray-200 px-5 py-3 dark:border-gray-800">
 			<button
+				type="button"
 				on:click={closeModal}
-				class="font-normal text-gray-600 transition hover:text-gray-950 dark:text-gray-400 dark:hover:text-white"
+				class="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
 			>
-				<span class="relative">{$i18n.t("Okay, Let's Go!")}</span>
+				{$i18n.t("Okay, Let's Go!")}
 			</button>
 		</div>
 	</div>
