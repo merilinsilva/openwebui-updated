@@ -105,22 +105,19 @@
 			transition:fade={{ delay: 100, duration: 300 }}
 		>
 			<div
-				class="flex shrink-0 items-center gap-1.5 pt-px {fullWidth ? '' : style.icon}"
+				class="flex shrink-0 items-center gap-1.5 {fullWidth ? 'pt-0.5' : `pt-px ${style.icon}`}"
 				title={typeLabel}
 			>
 				<svelte:component this={icon} className="size-4" strokeWidth="2" />
-				{#if fullWidth}
-					<span class="text-xs font-semibold uppercase tracking-wide">{typeLabel}</span>
-				{:else}
-					<span class="sr-only">{typeLabel}</span>
-				{/if}
+				<!-- The type (Info, Warning, ...) is conveyed by colour and icon; screen readers still hear it. -->
+				<span class="sr-only">{typeLabel}</span>
 			</div>
 
 			<div class="flex min-w-0 flex-1 flex-col gap-1 md:flex-row md:items-center">
 				<div
-					class="max-h-60 flex-1 overflow-y-auto text-xs {fullWidth
-						? ''
-						: 'text-gray-700 dark:text-white'}"
+					class="max-h-60 flex-1 overflow-y-auto {fullWidth
+						? 'text-sm font-semibold leading-snug'
+						: 'text-xs text-gray-700 dark:text-white'}"
 				>
 					{@html DOMPurify.sanitize(marked.parse((banner?.content ?? '').replace(/\n/g, '<br>')))}
 				</div>
