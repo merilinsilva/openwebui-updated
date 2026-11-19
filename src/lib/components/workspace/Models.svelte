@@ -45,6 +45,7 @@
 	import CheckCircle from '../icons/CheckCircle.svelte';
 	import Minus from '../icons/Minus.svelte';
 	import ModelMenu from './Models/ModelMenu.svelte';
+	import ModelOrderModal from './Models/ModelOrderModal.svelte';
 	import ModelDeleteConfirmDialog from '../common/ConfirmDialog.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
 	import GarbageBin from '../icons/GarbageBin.svelte';
@@ -88,6 +89,8 @@
 
 	let searchDebounceTimer;
 
+	let showModelOrderModal = false;
+
 	$: if (loaded) {
 		workspaceActions.set([
 			{
@@ -108,6 +111,13 @@
 					await downloadModels(models);
 				},
 				visible: $user?.role === 'admin' || $user?.permissions?.workspace?.models_export
+			},
+			{
+				// The order is global (it also sorts the model selector), so admins only.
+				id: 'models-order',
+				label: $i18n.t('Order on new chat'),
+				onClick: () => (showModelOrderModal = true),
+				visible: $user?.role === 'admin'
 			}
 		]);
 	}
@@ -462,6 +472,8 @@
 		};
 	});
 </script>
+
+<ModelOrderModal bind:show={showModelOrderModal} />
 
 <svelte:head>
 	<!-- LICENSE covers this Open WebUI browser-title identifier.

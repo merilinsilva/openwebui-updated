@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import { slide } from 'svelte/transition';
+	import { displayModelName, modelDescription } from '$lib/utils/modelNames';
+	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
 
 	import { models as _models } from '$lib/stores';
 	import {
@@ -41,12 +44,27 @@
 		return null;
 	};
 
-	// Valve values may carry a connection prefix ("azure_ai/claude-sonnet-5-5").
+	// Valve values may carry a connection prefix ("azure_ai/claude-sonnet-5-5") or differ in
+	// case from the model entry ("azure_ai/FW-Kimi-K3" vs "fw-kimi-k3"), so match loosely.
+	const bareId = (id: string) => `${id ?? ''}`.split('/').pop()?.toLowerCase() ?? '';
 	const findModel = (value: string) =>
 		$_models.find((m) => m.id === value) ??
-		$_models.find((m) => m.id.split('/').pop() === value.split('/').pop());
+		$_models.find((m) => m.id.toLowerCase() === `${value}`.toLowerCase()) ??
+		$_models.find((m) => bareId(m.id) === bareId(value));
 
-	const labelOf = (value: string) => findModel(value)?.name ?? value.split('/').pop();
+	// "auto" is not a model: the router picks the user's group default for it.
+	const AUTO = 'auto';
+
+	// Admin-set model name (Admin Settings > Models), or a readable form of the id.
+	const labelOf = (value: string) =>
+		value === AUTO ? $i18n.t('Auto') : displayModelName(findModel(value), value);
+	// "What it is used for": the model's description from Admin Settings > Models.
+	const descriptionOf = (value: string) =>
+		value === AUTO
+			? $i18n.t("Uses your team's default model.")
+			: modelDescription(findModel(value));
+
+	let openKey = '';
 
 	const load = async (m) => {
 		const token = ++loadToken;
@@ -63,10 +81,9 @@
 				if (!all || all.length === 0) continue;
 
 				const value = (values[key] ?? prop.default ?? all[0]) as string;
-				// Offer only the options this user can access as models (Open WebUI's own access
-				// control). If none of them map to a model, the choices aren't model ids: show all.
-				const accessible = all.filter((o) => typeof o === 'string' && findModel(o));
-				const options = accessible.length > 0 ? accessible : all;
+				// The filter's own list decides what users may pick (it handles restrictions
+				// itself), so show every choice, including non-model values such as "auto".
+				const options = all.filter((o) => typeof o === 'string');
 
 				next.push({
 					functionId,
@@ -112,24 +129,52 @@
 </script>
 
 {#if entries.length > 0}
-	<div class="flex flex-wrap justify-center gap-2 mt-1">
+	<div class="flex w-full flex-col items-center gap-2 mt-1 px-5">
 		{#each entries as entry (`${entry.functionId}.${entry.key}`)}
-			<label
-				class="flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-800 pl-3 pr-1 py-0.5 text-xs text-gray-600 dark:text-gray-300"
+			{@const key = `${entry.functionId}.${entry.key}`}
+			<button
+				type="button"
+				class="flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-800 px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 transition disabled:opacity-60"
 				title={entry.description}
+				aria-expanded={openKey === key}
+				disabled={saving === key}
+				on:click={() => (openKey = openKey === key ? '' : key)}
 			>
 				<span>{entry.title}</span>
-				<select
-					class="bg-transparent text-xs font-medium text-gray-900 dark:text-gray-100 outline-hidden cursor-pointer py-1 pr-1 disabled:opacity-60"
-					value={entry.value}
-					disabled={saving === `${entry.functionId}.${entry.key}`}
-					on:change={(e) => save(entry, e.currentTarget.value)}
+				<span class="font-medium text-gray-900 dark:text-gray-100">{labelOf(entry.value)}</span>
+				<ChevronDown className="size-3 transition {openKey === key ? 'rotate-180' : ''}" strokeWidth="2" />
+			</button>
+
+			{#if openKey === key}
+				<div
+					class="grid w-full max-w-3xl grid-cols-1 @md:grid-cols-2 gap-2 text-left"
+					transition:slide={{ duration: 150 }}
 				>
 					{#each entry.options as option}
-						<option value={option} class="bg-white dark:bg-gray-900">{labelOf(option)}</option>
+						{@const selected = option === entry.value}
+						<button
+							type="button"
+							class="flex flex-col rounded-2xl border px-4 py-3 transition {selected
+								? 'border-gray-900 dark:border-gray-100 bg-gray-50 dark:bg-gray-850'
+								: 'border-gray-100 dark:border-gray-850 hover:bg-gray-50 dark:hover:bg-gray-850'}"
+							aria-pressed={selected}
+							on:click={async () => {
+								openKey = '';
+								if (!selected) await save(entry, option);
+							}}
+						>
+							<span class="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">
+								{labelOf(option)}
+							</span>
+							{#if descriptionOf(option)}
+								<span class="mt-0.5 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+									{descriptionOf(option)}
+								</span>
+							{/if}
+						</button>
 					{/each}
-				</select>
-			</label>
+				</div>
+			{/if}
 		{/each}
 	</div>
 {/if}

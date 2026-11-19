@@ -2191,6 +2191,7 @@
 											>
 												<span class="size-1.5 rounded-full bg-green-500" aria-hidden="true"></span>
 												<span class="max-w-40 truncate">{server.name}</span>
+												<span class="text-green-700 dark:text-green-400">{$i18n.t('connected')}</span>
 												<button
 													type="button"
 													class="flex size-5 items-center justify-center rounded-full text-gray-500 hover:text-gray-900 dark:hover:text-white"

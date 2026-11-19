@@ -31,6 +31,7 @@
 	import FolderTitle from './Placeholder/FolderTitle.svelte';
 	import ModelValveSelect from './Placeholder/ModelValveSelect.svelte';
 	import SkillsLibraryModal from './Placeholder/SkillsLibraryModal.svelte';
+	import WorkspaceModelPicker from './Placeholder/WorkspaceModelPicker.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -92,6 +93,13 @@
 	$: models = selectedModels.map((id) => $_models.find((m) => m.id === id));
 
 	$: activeModel = atSelectedModel ?? models[selectedModelIdx];
+
+	// Workspace (custom) models for the header picker; $models is already in the admin's order.
+	$: workspaceModels = ($_models ?? []).filter(
+		(m) => m?.info?.base_model_id && !(m?.info?.meta?.hidden ?? false)
+	);
+	$: showModelPicker =
+		workspaceModels.length > 0 && selectedModels.length <= 1 && !atSelectedModel;
 
 	// Skills the user can use (store is loaded by Chat.svelte).
 	const QUICK_SKILL_COUNT = 6;
@@ -195,63 +203,73 @@
 					}}
 				/>
 			{:else}
-				<div class="flex flex-row justify-center gap-2.5 @sm:gap-3 w-fit px-5 max-w-xl">
-					<div class="flex shrink-0 justify-center">
-						<div class="flex -space-x-4 mb-0.5" in:fade={{ duration: 100 }}>
-							{#each models as model, modelIdx}
-								<Tooltip
-									content={(models[modelIdx]?.info?.meta?.tags ?? [])
-										.map((tag) => tag.name.toUpperCase())
-										.join(', ')}
-									placement="top"
-								>
-									<button
-										aria-hidden={models.length <= 1}
-										aria-label={$i18n.t('Get information on {{name}} in the UI', {
-											name: models[modelIdx]?.name
-										})}
-										on:click={() => {
-											selectedModelIdx = modelIdx;
-										}}
+				{#if showModelPicker}
+					<WorkspaceModelPicker
+						models={workspaceModels}
+						current={models[selectedModelIdx]}
+						onSelect={(modelId) => {
+							selectedModels = [modelId];
+						}}
+					/>
+				{:else}
+					<div class="flex flex-row justify-center gap-2.5 @sm:gap-3 w-fit px-5 max-w-xl">
+						<div class="flex shrink-0 justify-center">
+							<div class="flex -space-x-4 mb-0.5" in:fade={{ duration: 100 }}>
+								{#each models as model, modelIdx}
+									<Tooltip
+										content={(models[modelIdx]?.info?.meta?.tags ?? [])
+											.map((tag) => tag.name.toUpperCase())
+											.join(', ')}
+										placement="top"
 									>
-										<img
-											src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
-											class=" size-9 @sm:size-10 rounded-2xl"
-											aria-hidden="true"
-											draggable="false"
-											on:error={(e) => {
-												// LICENSE covers this Open WebUI fallback logo.
-												// Do not alter, remove, obscure, or replace it except as LICENSE permits:
-												// https://docs.openwebui.com/license.
-												e.currentTarget.src = '/favicon.png';
+										<button
+											aria-hidden={models.length <= 1}
+											aria-label={$i18n.t('Get information on {{name}} in the UI', {
+												name: models[modelIdx]?.name
+											})}
+											on:click={() => {
+												selectedModelIdx = modelIdx;
 											}}
-										/>
-									</button>
-								</Tooltip>
-							{/each}
+										>
+											<img
+												src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${model?.id}&lang=${$i18n.language}`}
+												class=" size-9 @sm:size-10 rounded-2xl"
+												aria-hidden="true"
+												draggable="false"
+												on:error={(e) => {
+													// LICENSE covers this Open WebUI fallback logo.
+													// Do not alter, remove, obscure, or replace it except as LICENSE permits:
+													// https://docs.openwebui.com/license.
+													e.currentTarget.src = '/favicon.png';
+												}}
+											/>
+										</button>
+									</Tooltip>
+								{/each}
+							</div>
 						</div>
-					</div>
 
-					<div
-						class=" text-2xl @sm:text-2xl line-clamp-1 flex items-center"
-						in:fade={{ duration: 100 }}
-					>
-						{#if models[selectedModelIdx]?.name}
-							<Tooltip
-								content={models[selectedModelIdx]?.name}
-								placement="top"
-								className=" flex items-center "
-							>
-								<span class="line-clamp-1">
-									{models[selectedModelIdx]?.name}
-								</span>
-							</Tooltip>
-						{:else}
-							{$i18n.t('Hello, {{name}}', { name: $user?.name })}
-						{/if}
-					</div>
+						<div
+							class=" text-2xl @sm:text-2xl line-clamp-1 flex items-center"
+							in:fade={{ duration: 100 }}
+						>
+							{#if models[selectedModelIdx]?.name}
+								<Tooltip
+									content={models[selectedModelIdx]?.name}
+									placement="top"
+									className=" flex items-center "
+								>
+									<span class="line-clamp-1">
+										{models[selectedModelIdx]?.name}
+									</span>
+								</Tooltip>
+							{:else}
+								{$i18n.t('Hello, {{name}}', { name: $user?.name })}
+							{/if}
+						</div>
 
-				</div>
+					</div>
+				{/if}
 
 				<div class="flex mt-1 mb-2">
 					<div in:fade={{ duration: 100, delay: 50 }}>
