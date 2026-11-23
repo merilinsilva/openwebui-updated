@@ -50,6 +50,8 @@ class FolderModel(BaseModel):
 
 class FolderMetadataResponse(BaseModel):
     icon: Optional[str] = None
+    # CHOn: marks the automatic "Automations" folder (see utils/chon_automation_folder.py)
+    chon_automations: Optional[bool] = None
 
 
 class FolderNameIdResponse(BaseModel):

@@ -6,7 +6,6 @@
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import DropdownMenu from '$lib/components/common/DropdownMenu.svelte';
-	import ChatBubble from '$lib/components/icons/ChatBubble.svelte';
 	import Check from '$lib/components/icons/Check.svelte';
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
 	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
@@ -42,6 +41,13 @@
 		.filter((channel) => channel?.id && channel.type !== 'dm')
 		.sort((a, b) => channelName(a).localeCompare(channelName(b)));
 	$: selectedFolder = folderOptions.find((folder) => folder.id === folder_id);
+
+	// CHOn: default destination = the automatic "Automations" folder. An empty folder_id is
+	// saved as that folder by the backend (created if missing).
+	$: automationsFolder = folderOptions.find((folder) => folder?.meta?.chon_automations);
+	$: isDefaultFolder =
+		target_type === 'chat' &&
+		(!folder_id || (!!automationsFolder && folder_id === automationsFolder.id));
 	$: selectedChannel = channelOptions.find((channel) => channel.id === channel_id);
 
 	const folderPath = (folder: any) => {
@@ -65,9 +71,11 @@
 			? selectedChannel
 				? `#${channelName(selectedChannel)}`
 				: $i18n.t('Choose channel')
-			: selectedFolder
-				? folderName(selectedFolder)
-				: $i18n.t('New chat');
+			: isDefaultFolder
+				? $i18n.t('Automations folder')
+				: selectedFolder
+					? folderName(selectedFolder)
+					: $i18n.t('Automations folder');
 	$: normalizedFolderSearch = folderSearch.trim().toLowerCase();
 	$: filteredFolderOptions = normalizedFolderSearch
 		? folderOptions.filter((folder) =>
@@ -129,10 +137,8 @@
 	>
 		{#if target_type === 'channel'}
 			<Hashtag className="size-3.5 shrink-0" />
-		{:else if folder_id}
-			<Folder className="size-3.5 shrink-0" />
 		{:else}
-			<ChatBubble className="size-3.5 shrink-0" />
+			<Folder className="size-3.5 shrink-0" />
 		{/if}
 		<span class="min-w-0 truncate">{destinationLabel}</span>
 		<ChevronDown className="size-2.5 shrink-0" strokeWidth="2.5" />
@@ -147,17 +153,22 @@
 				>
 					<button
 						type="button"
-						class="flex h-[1.6875rem] w-full cursor-pointer items-center justify-between gap-2 rounded-xl bg-transparent px-2 text-[0.8125rem] hover:bg-gray-50/40 hover:text-gray-900 dark:hover:bg-gray-800/40 dark:hover:text-gray-100 {target_type ===
-							'chat' && !folder_id
+						class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl bg-transparent px-2 py-1 text-[0.8125rem] hover:bg-gray-50/40 hover:text-gray-900 dark:hover:bg-gray-800/40 dark:hover:text-gray-100 {isDefaultFolder
 							? 'text-gray-900 dark:text-gray-100'
 							: 'text-gray-700 dark:text-gray-300'}"
 						on:click={selectChat}
 					>
+						<!-- CHOn: default destination, replaces the loose "New chat" option -->
 						<div class="flex min-w-0 items-center gap-1.5">
-							<ChatBubble className="size-3.5 shrink-0" />
-							<span class="min-w-0 truncate">{$i18n.t('New chat')}</span>
+							<Folder className="size-3.5 shrink-0" />
+							<span class="min-w-0 text-left">
+								<span class="block truncate">{$i18n.t('Automations folder')}</span>
+								<span class="block truncate text-[0.6875rem] text-gray-500">
+									{$i18n.t('A new chat for every run')}
+								</span>
+							</span>
 						</div>
-						{#if target_type === 'chat' && !folder_id}
+						{#if isDefaultFolder}
 							<Check className="size-3.5 shrink-0" strokeWidth="2" />
 						{/if}
 					</button>
@@ -165,7 +176,7 @@
 					<button
 						type="button"
 						class="flex h-[1.6875rem] w-full cursor-pointer items-center justify-between gap-2 rounded-xl bg-transparent px-2 text-[0.8125rem] hover:bg-gray-50/40 hover:text-gray-900 dark:hover:bg-gray-800/40 dark:hover:text-gray-100 {target_type ===
-							'chat' && folder_id
+							'chat' && folder_id && !isDefaultFolder
 							? 'text-gray-900 dark:text-gray-100'
 							: 'text-gray-700 dark:text-gray-300'}"
 						on:click={() => (tab = 'folders')}
@@ -173,11 +184,13 @@
 						<div class="flex min-w-0 items-center gap-1.5">
 							<Folder className="size-3.5 shrink-0" />
 							<span class="min-w-0 truncate">
-								{selectedFolder ? folderName(selectedFolder) : $i18n.t('Folder')}
+								{selectedFolder && !isDefaultFolder
+									? folderName(selectedFolder)
+									: $i18n.t('Other folder')}
 							</span>
 						</div>
 						<div class="flex shrink-0 items-center gap-1 text-gray-500">
-							{#if target_type === 'chat' && folder_id}
+							{#if target_type === 'chat' && folder_id && !isDefaultFolder}
 								<Check className="size-3.5" strokeWidth="2" />
 							{/if}
 							<ChevronRight />

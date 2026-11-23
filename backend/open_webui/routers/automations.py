@@ -19,6 +19,7 @@ from open_webui.models.access_grants import AccessGrants, has_public_write_acces
 from open_webui.models.channels import Channels
 from open_webui.models.config import Config
 from open_webui.models.folders import Folders
+from open_webui.utils.chon_automation_folder import assign_default_folder
 from open_webui.utils.access_control import has_permission
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.automations import (
@@ -215,6 +216,8 @@ async def create_new_automation(
     await check_automations_permission(request, user)
     await check_automation_folder_access(form_data.folder_id, user, db)
     await check_automation_channel_access(form_data, user, db)
+    # CHOn: default destination is the user's "Automations" folder (created now if missing)
+    await assign_default_folder(form_data, user.id)
     try:
         validate_rrule(form_data.data.rrule, tz=user.timezone)
     except ValueError as e:
@@ -274,6 +277,8 @@ async def update_automation_by_id(
     check_automation_access(automation, user)
     await check_automation_folder_access(form_data.folder_id, user, db)
     await check_automation_channel_access(form_data, user, db)
+    # CHOn: default destination is the user's "Automations" folder (created now if missing)
+    await assign_default_folder(form_data, user.id)
 
     try:
         validate_rrule(form_data.data.rrule, tz=user.timezone)

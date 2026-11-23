@@ -35,6 +35,7 @@ from open_webui.models.automations import AutomationModel, AutomationRuns, Autom
 from open_webui.models.chats import ChatForm, Chats
 from open_webui.models.config import Config
 from open_webui.models.folders import Folders
+from open_webui.utils.chon_automation_folder import get_or_create_automations_folder_id
 from open_webui.models.messages import MessageForm
 from open_webui.models.users import Users
 from open_webui.utils.auth import create_token
@@ -549,6 +550,10 @@ async def execute_automation(app, automation: AutomationModel) -> None:
         if folder_id and not await Folders.get_folder_by_id_and_user_id(folder_id, automation.user_id):
             await Automations.clear_folder_ids(automation.user_id, [folder_id])
             folder_id = None
+
+        # CHOn: no folder chosen -> the owner's "Automations" folder (created if missing)
+        if not folder_id:
+            folder_id = await get_or_create_automations_folder_id(automation.user_id)
 
         # Generate proper UUIDs for messages (same as frontend)
         user_msg_id = str(uuid4())

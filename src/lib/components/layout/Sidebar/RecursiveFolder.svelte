@@ -942,7 +942,9 @@
 						</div>
 					{/if}
 
-					{#if chats !== null && chats.length === 0 && !chatsLoading}
+					<!-- CHOn: keep "No chats" during background reloads (e.g. automation runs refresh the
+				     chat list several times); hiding it on every reload made the sidebar flicker. -->
+				{#if chats !== null && chats.length === 0}
 						<div class="px-2 py-0.5 text-[0.6875rem] text-gray-400 dark:text-gray-600">
 							{$i18n.t('No chats')}
 						</div>
