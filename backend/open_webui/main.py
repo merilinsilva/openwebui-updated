@@ -242,6 +242,7 @@ from open_webui.utils.middleware import (
     process_chat_response,
 )
 from open_webui.utils.misc import get_response_error_detail, merge_model_params
+from open_webui.utils.chon_errors import ProviderError, error_from_exception, get_response_error_info
 from open_webui.utils.model_ids import strip_provider_model_prefix
 from open_webui.utils.models import (
     check_model_access,
@@ -1636,7 +1637,8 @@ async def chat_completion(
             # raise so the except-block below emits chat:message:error +
             # chat:tasks:cancel, unblocking the frontend.
             if isinstance(response, JSONResponse) and response.status_code >= 400:
-                raise Exception(get_response_error_detail(response))
+                # CHOn (T17): keep HTTP status and provider error code for specific error cards
+                raise ProviderError(get_response_error_detail(response), **get_response_error_info(response))
 
             ctx = await build_chat_response_context(request, form_data, user, model, metadata, tasks, events)
 
@@ -1656,6 +1658,7 @@ async def chat_completion(
             raise  # re-raise to ensure proper task cancellation handling
         except Exception as e:
             error_detail = e.detail if isinstance(e, HTTPException) else str(e)
+            chat_error = error_from_exception(e)  # CHOn (T17): {content, status?, code?}
             log.error('Error processing chat payload: %s', error_detail)
             if metadata.get('chat_id') and metadata.get('message_id'):
                 # Update the chat message with the error
@@ -1666,7 +1669,7 @@ async def chat_completion(
                             metadata['message_id'],
                             {
                                 'parentId': metadata.get('user_message_id', None),
-                                'error': {'content': error_detail},
+                                'error': chat_error,
                             },
                         )
 
@@ -1675,7 +1678,7 @@ async def chat_completion(
                         await event_emitter(
                             {
                                 'type': 'chat:message:error',
-                                'data': {'error': {'content': error_detail}},
+                                'data': {'error': chat_error},
                             }
                         )
                         await event_emitter(

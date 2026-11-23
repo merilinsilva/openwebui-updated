@@ -104,7 +104,13 @@
 			query?: string;
 		};
 		done: boolean;
-		error?: boolean | { content: string };
+		// CHOn (T17): status/code/finish_reason from the backend, stopped by the user
+		error?:
+			| boolean
+			| { content: string; status?: number; code?: string; finish_reason?: string };
+		stopped?: boolean;
+		embeds?: unknown[];
+		selectedModelId?: string;
 		sources?: string[];
 		code_executions?: {
 			uuid: string;
@@ -208,6 +214,52 @@
 	$: visibleResponseContent =
 		getOutputText(message.output) || removeAllDetails(message.content ?? '');
 	$: hasResponseContent = Boolean((message.content ?? '').trim() || message.output?.length);
+
+	// CHOn (T17): a finished answer without text, files or code output is never shown
+	// as an empty bubble. The backend normally sends an explicit error; this also covers
+	// older chats and stopped answers.
+	$: isEmptyReply =
+		!!message.done &&
+		!message.error &&
+		!(visibleResponseContent ?? '').trim() &&
+		!(message.files?.length ?? 0) &&
+		!(message.embeds?.length ?? 0) &&
+		!(message.code_executions?.length ?? 0);
+
+	$: canRetryResponse =
+		!readOnly &&
+		($user?.role === 'admin' || ($user?.permissions?.chat?.regenerate_response ?? true));
+
+	const retryResponseHandler = () => {
+		showRateComment = false;
+		regenerateResponse(message);
+	};
+
+	// "Report" on an error card: stored as feedback (type "error_report"), listed in
+	// Admin > Evaluations > Feedbacks. No rating, so the model leaderboard is unaffected.
+	const reportErrorHandler = async (report: { kind: string; title: string; details: string }) => {
+		const chat = chatId ? await getChatById(localStorage.token, chatId).catch(() => null) : null;
+		const res = await createNewFeedback(localStorage.token, {
+			type: 'error_report',
+			data: {
+				model_id: message?.selectedModelId ?? message.model,
+				reason: report.kind,
+				comment: [report.title, report.details].filter(Boolean).join('\n\n')
+			},
+			meta: {
+				model_id: message.model,
+				message_id: message.id,
+				chat_id: chatId,
+				error_code: (typeof message.error === 'object' && message.error?.code) || null,
+				error_status: (typeof message.error === 'object' && message.error?.status) || null
+			},
+			snapshot: { chat }
+		}).catch((error) => {
+			toast.error(`${error}`);
+			return null;
+		});
+		return !!res;
+	};
 
 	let edit = false;
 	let editedContent = '';
@@ -932,7 +984,29 @@
 							{/if}
 
 							{#if message?.error}
-								<Error content={message?.error?.content ?? message.content} />
+								<!-- CHOn (T17): specific error card with Retry and Report -->
+								<Error
+									error={typeof message.error === 'object' ? message.error : null}
+									content={message?.error?.content ?? message.content}
+									canRetry={canRetryResponse}
+									onRetry={retryResponseHandler}
+									onReport={readOnly ? null : reportErrorHandler}
+								/>
+							{:else if message.done && message.stopped}
+								<!-- CHOn (T17): stopped by the user, with or without partial text -->
+								<Error
+									stopped={true}
+									canRetry={canRetryResponse}
+									onRetry={retryResponseHandler}
+									onReport={null}
+								/>
+							{:else if isEmptyReply}
+								<Error
+									error={{ content: '', code: 'empty_response' }}
+									canRetry={canRetryResponse}
+									onRetry={retryResponseHandler}
+									onReport={readOnly ? null : reportErrorHandler}
+								/>
 							{/if}
 
 							{#if (message?.sources || message?.citations) && (model?.info?.meta?.capabilities?.citations ?? true)}

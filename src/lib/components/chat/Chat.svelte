@@ -98,6 +98,7 @@
 		getTaskIdsByChatId
 	} from '$lib/apis';
 	import { getTools } from '$lib/apis/tools';
+	import { explainChatError } from '$lib/utils/chatErrors';
 	import { getSkills } from '$lib/apis/skills';
 	import { uploadFile } from '$lib/apis/files';
 	import { createOpenAITextStream } from '$lib/apis/streaming';
@@ -3632,10 +3633,11 @@
 				errorMessage = $i18n.t(`Uh-oh! There was an issue with the response.`);
 			}
 
-			toast.error(`${errorMessage}`);
 			responseMessage.error = {
 				content: error
 			};
+			// CHOn (T17): plain-language toast; the error card shows cause, next step and details
+			toast.error(explainChatError((key, opts) => $i18n.t(key, opts), responseMessage.error).title);
 
 			responseMessage.done = true;
 
@@ -3692,37 +3694,39 @@
 	};
 
 	const handleOpenAIError = async (error, responseMessage) => {
-		let errorMessage = '';
-		let innerError;
-
-		if (error) {
-			innerError = error;
-		}
-
+		// CHOn (T17): keep the provider's message and code so the error card can name the
+		// cause; also handles plain-string errors (previously a TypeError on `'detail' in`).
+		const innerError = error ?? {};
 		console.error(innerError);
-		if ('detail' in innerError) {
-			// FastAPI error
-			toast.error(innerError.detail);
-			errorMessage = innerError.detail;
-		} else if ('error' in innerError) {
-			// OpenAI error
-			if ('message' in innerError.error) {
-				toast.error(innerError.error.message);
-				errorMessage = innerError.error.message;
-			} else {
-				toast.error(innerError.error);
-				errorMessage = innerError.error;
-			}
-		} else if ('message' in innerError) {
-			// OpenAI error
-			toast.error(innerError.message);
-			errorMessage = innerError.message;
+
+		let errorMessage = '';
+		if (typeof innerError === 'string') {
+			errorMessage = innerError;
+		} else if (typeof innerError?.detail === 'string') {
+			errorMessage = innerError.detail; // FastAPI error
+		} else if (innerError?.error) {
+			errorMessage =
+				typeof innerError.error === 'string'
+					? innerError.error
+					: (innerError.error?.message ?? JSON.stringify(innerError.error));
+		} else if (typeof innerError?.message === 'string') {
+			errorMessage = innerError.message; // OpenAI error
+		} else {
+			errorMessage = JSON.stringify(innerError);
 		}
+
+		const errorCode =
+			typeof innerError === 'object'
+				? (innerError?.error?.innererror?.code ?? innerError?.error?.code ?? innerError?.code ?? null)
+				: null;
 
 		responseMessage.error = {
-			content: $i18n.t(`Uh-oh! There was an issue with the response.`) + '\n' + errorMessage
+			content: errorMessage,
+			...(typeof errorCode === 'string' && errorCode ? { code: errorCode } : {})
 		};
 		responseMessage.done = true;
+
+		toast.error(explainChatError((key, opts) => $i18n.t(key, opts), responseMessage.error).title);
 
 		if (responseMessage.statusHistory) {
 			responseMessage.statusHistory = responseMessage.statusHistory.filter(
@@ -3741,6 +3745,17 @@
 			(hasTaskIds || (responseMessage?.role === 'assistant' && responseMessage?.done !== true));
 
 		if (hasTaskIds || hasPendingAssistantResponse) {
+			// CHOn (T17): mark unfinished answers as stopped by the user *before* cancelling.
+			// The backend's chat:tasks:cancel event sets done=true while we await below,
+			// so checking `done` afterwards would miss them.
+			if (responseMessage?.parentId && history.messages[responseMessage.parentId]) {
+				for (const messageId of history.messages[responseMessage.parentId].childrenIds) {
+					if (history.messages[messageId] && !history.messages[messageId].done) {
+						history.messages[messageId].stopped = true;
+					}
+				}
+			}
+
 			if ($chatId) {
 				await stopTasksByChatId(localStorage.token, $chatId).catch((error) => {
 					toast.error(`${error}`);

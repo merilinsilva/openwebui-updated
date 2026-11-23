@@ -101,6 +101,7 @@ from open_webui.utils.filter import (
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.mcp.client import MCPClient
 from open_webui.utils.memory import add_memory_context, review_memory_after_turn
+from open_webui.utils import chon_errors  # CHOn (T17)
 from open_webui.utils.misc import (
     add_or_update_system_message,
     add_or_update_user_message,
@@ -4191,6 +4192,21 @@ async def non_streaming_chat_response_handler(response, ctx):
                     }
                     await outlet_filter_handler(ctx)
                     await background_tasks_handler(ctx)
+            elif 'error' not in response_data:
+                # CHOn (T17): a non-streaming reply without content used to end
+                # silently (no done, no error). Show an explicit error instead.
+                chon_turn = chon_errors.TurnState()
+                chon_turn.note_finish_reason(choices[0].get('finish_reason') if choices else None)
+                chon_empty_error = chon_errors.empty_reply_error(response_output or [], chon_turn, content or '')
+                if chon_empty_error:
+                    if save_to_chat:
+                        await Chats.upsert_message_to_chat_by_id_and_message_id(
+                            metadata['chat_id'],
+                            metadata['message_id'],
+                            {'done': True, 'role': 'assistant', 'error': chon_empty_error},
+                        )
+                    await event_emitter({'type': 'chat:message:error', 'data': {'error': chon_empty_error}})
+                    await event_emitter({'type': 'chat:completion', 'data': {'done': True}})
 
             response = build_response_object(response, merge_events_into_response(response_data, events))
         except Exception as e:
@@ -4247,7 +4263,10 @@ async def streaming_chat_response_handler(response, ctx):
     metadata = ctx['metadata']
     events = ctx['events']
 
-    event_emitter = ctx['event_emitter']
+    # CHOn (T17): remember emitted errors/files and finish_reason so a turn
+    # never ends with a silent empty reply.
+    chon_turn = chon_errors.TurnState()
+    event_emitter = chon_errors.track_turn(ctx['event_emitter'], chon_turn)
     event_caller = ctx['event_caller']
     chat_id = metadata.get('chat_id') or ''
     save_to_chat = is_saved_chat_id(chat_id)
@@ -5010,6 +5029,7 @@ async def streaming_chat_response_handler(response, ctx):
                                             )
                                         continue
 
+                                    chon_turn.note_finish_reason(choices[0].get('finish_reason'))  # CHOn (T17)
                                     delta = choices[0].get('delta', {})
                                     delta_type = 'content'
 
@@ -6259,6 +6279,18 @@ async def streaming_chat_response_handler(response, ctx):
                         item['status'] = 'completed'
 
                 current_output = full_output()
+
+                # CHOn (T17): never end a turn with an empty reply
+                chon_empty_error = chon_errors.empty_reply_error(
+                    current_output, chon_turn, ''.join(content_parts) or None
+                )
+                if chon_empty_error:
+                    if save_to_chat:
+                        await Chats.upsert_message_to_chat_by_id_and_message_id(
+                            metadata['chat_id'], metadata['message_id'], {'error': chon_empty_error}
+                        )
+                    await event_emitter({'type': 'chat:message:error', 'data': {'error': chon_empty_error}})
+
                 title = await Chats.get_chat_title_by_id(metadata['chat_id']) if save_to_chat else ''
                 data = {
                     'done': True,
@@ -6320,6 +6352,7 @@ async def streaming_chat_response_handler(response, ctx):
                             metadata['message_id'],
                             {
                                 'done': True,
+                                'stopped': True,  # CHOn (T17): stopped, not an empty reply
                                 'output': full_output(),
                             },
                         )
