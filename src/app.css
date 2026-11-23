@@ -1006,3 +1006,30 @@ html.high-contrast:not(.dark) .shimmer {
 	color: var(--color-gray-800);
 	-webkit-text-fill-color: var(--color-gray-800);
 }
+
+/* CHOn (T16): Interface rows hidden from non-admin users (WG-AI-PLA-00002, section 9, PP-24).
+   The class is set in src/lib/components/common/InterfaceSettings.svelte; hidden tabs are in
+   src/lib/utils/settingsVisibility.ts. Each selector hides the whole row (label, control, help text). */
+.chon-trimmed-settings div:has(> div > #font-family-label),
+.chon-trimmed-settings div:has(> div > #enable-message-queue-label),
+.chon-trimmed-settings div:has(> div > #chat-direction-label),
+.chon-trimmed-settings div:has(> div > #landing-page-mode-label),
+.chon-trimmed-settings div:has(> div > #chat-background-label),
+.chon-trimmed-settings div:has(> div > #chat-bubble-ui-label),
+.chon-trimmed-settings div:has(> div > #fade-streaming-label),
+.chon-trimmed-settings div:has(> div > #render-markdown-user-label),
+.chon-trimmed-settings div:has(> div > #render-markdown-assistant-label),
+.chon-trimmed-settings div:has(> div > #render-markdown-in-previews-label),
+.chon-trimmed-settings div:has(> div > #scroll-on-branch-change-label),
+.chon-trimmed-settings div:has(> div > #regenerate-menu-label),
+.chon-trimmed-settings div:has(> div > #keep-followup-prompts-label),
+.chon-trimmed-settings div:has(> div > #terminal-file-display-label),
+.chon-trimmed-settings div:has(> div > #show-files-on-terminal-select-label),
+.chon-trimmed-settings div:has(> div > #terminal-preview-allow-same-origin-label),
+.chon-trimmed-settings div:has(> div > #stylized-pdf-export-label),
+.chon-trimmed-settings div:has(> div > #iframe-sandbox-allow-scripts-label),
+.chon-trimmed-settings div:has(> div > #iframe-sandbox-allow-same-origin-label),
+.chon-trimmed-settings div:has(> div > #iframe-sandbox-allow-forms-label),
+.chon-trimmed-settings div:has(> div > #iframe-sandbox-allow-downloads-label) {
+	display: none;
+}

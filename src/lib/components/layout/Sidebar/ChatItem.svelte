@@ -42,6 +42,12 @@
 		user
 	} from '$lib/stores';
 	import { refreshChatList } from '$lib/stores/chatList';
+	import {
+		chatSelectMode,
+		selectedChatIds,
+		toggleChatSelection,
+		enterChatSelectMode
+	} from '$lib/stores/chatSelection';
 
 	import ChatMenu from './ChatMenu.svelte';
 	import DeleteConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
@@ -584,7 +590,7 @@
 	id="sidebar-chat-group"
 	bind:this={itemElement}
 	class=" w-full {className} relative group"
-	draggable={!confirmEdit && !readonly}
+	draggable={!confirmEdit && !readonly && !$chatSelectMode}
 	on:mouseenter={() => {
 		mouseOver = true;
 	}}
@@ -637,6 +643,42 @@
 				}}
 			/>
 		</div>
+	{:else if $chatSelectMode && !readonly}
+		<!-- CHOn (T16): selection row used by bulk chat actions -->
+		<button
+			type="button"
+			id="sidebar-chat-item"
+			role="checkbox"
+			aria-checked={$selectedChatIds.has(id)}
+			class="w-full flex items-center gap-2 rounded-xl px-2 py-1.5 text-left whitespace-nowrap transition {$selectedChatIds.has(
+				id
+			)
+				? 'bg-red-50 dark:bg-red-950/30'
+				: 'hover:bg-gray-100 dark:hover:bg-gray-900'}"
+			on:click|preventDefault={() => toggleChatSelection(id)}
+		>
+			<span
+				class="flex size-4 shrink-0 items-center justify-center rounded border transition {$selectedChatIds.has(
+					id
+				)
+					? 'bg-red-700 border-red-700 text-white'
+					: 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900'}"
+				aria-hidden="true"
+			>
+				{#if $selectedChatIds.has(id)}
+					<svg viewBox="0 0 16 16" fill="none" class="size-3">
+						<path
+							d="M3.5 8.5l3 3 6-7"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+					</svg>
+				{/if}
+			</span>
+			<span class="flex-1 min-w-0 truncate">{title}</span>
+		</button>
 	{:else if $mobile}
 		<a
 			id="sidebar-chat-item"
@@ -677,7 +719,7 @@
 		</LinkPreview.Root>
 	{/if}
 
-	{#if !readonly}
+	{#if !readonly && !$chatSelectMode}
 		<div
 			id="sidebar-chat-item-menu"
 			class="{$mobile
@@ -754,6 +796,7 @@
 							showDeleteConfirm = true;
 						}}
 						{markUnreadHandler}
+						selectHandler={() => enterChatSelectMode(id)}
 						onOpen={() => {
 							menuOpen = true;
 							dispatch('select');

@@ -79,6 +79,9 @@
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 
 	import UserMenu from './Sidebar/UserMenu.svelte';
+	import BulkChatActionBar from './Sidebar/BulkChatActionBar.svelte';
+	import { chatSelectMode, enterChatSelectMode } from '$lib/stores/chatSelection';
+	import CheckBoxIcon from '../icons/CheckBox.svelte';
 	import ChatItem from './Sidebar/ChatItem.svelte';
 	import Spinner from '../common/Spinner.svelte';
 	import Loader from '../common/Loader.svelte';
@@ -1668,6 +1671,17 @@
 											<CheckIcon className="size-3.5" />
 											<div class="flex items-center">{$i18n.t('Mark all as read')}</div>
 										</button>
+										<!-- CHOn (T16): enter multi-select mode for bulk chat actions -->
+										<button
+											class="flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-[0.8125rem] select-none cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900"
+											on:click={() => {
+												showChatsMenu = false;
+												enterChatSelectMode();
+											}}
+										>
+											<CheckBoxIcon className="size-3.5" />
+											<div class="flex items-center">{$i18n.t('Select chats')}</div>
+										</button>
 									</DropdownMenu>
 								</div>
 							</Dropdown>
@@ -1863,6 +1877,12 @@
 						class=" sidebar-bg-gradient-to-t bg-linear-to-t from-gray-50 dark:from-gray-950 to-transparent from-50% pointer-events-none absolute inset-0 -z-10 -mt-6"
 					></div>
 					<div class="flex flex-col">
+						{#if $chatSelectMode}
+							<BulkChatActionBar
+								selectableIds={[...($pinnedChats ?? []), ...($chats ?? [])].map((chat) => chat.id)}
+								onDone={initChatList}
+							/>
+						{/if}
 						{#if hasHowToUse}
 							<div class="pb-1 mb-1 border-b border-gray-100 dark:border-gray-850/60">
 								<button

@@ -5,6 +5,7 @@
 	import { updateUserInfo } from '$lib/apis/users';
 	import { getUserPosition } from '$lib/utils';
 	import { normalizeAppFontFamily, setAppFontFamily, setTextScale } from '$lib/utils/text-scale';
+	import { useTrimmedSettings } from '$lib/utils/settingsVisibility';
 
 	import Minus from '$lib/components/icons/Minus.svelte';
 	import Plus from '$lib/components/icons/Plus.svelte';
@@ -457,7 +458,8 @@
 	}}
 />
 
-<div class="flex flex-col gap-2.5">
+<!-- CHOn (T16): non-admins get a trimmed list; hidden rows are listed in src/app.css -->
+<div class="flex flex-col gap-2.5" class:chon-trimmed-settings={useTrimmedSettings($user)}>
 	<h3 class={firstSectionHeadingClass}>{$i18n.t('UI')}</h3>
 
 	<div>

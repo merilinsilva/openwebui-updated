@@ -56,6 +56,7 @@
 	import AdminPipelines from '$lib/components/admin/Settings/Pipelines.svelte';
 	import AdminDatabase from '$lib/components/admin/Settings/Database.svelte';
 
+	import { isSettingsTabVisible } from '$lib/utils/settingsVisibility';
 	const i18n: Writable<any> = getContext('i18n');
 
 	export let show: boolean | string | SettingsModalRequest = false;
@@ -811,6 +812,11 @@
 			if (tab.id === 'tools') {
 				return (
 					$user?.role === 'admin' ||
+			// CHOn (T16): short settings page for standard users
+			if (!isSettingsTabVisible(tab.id, $user)) {
+				return false;
+			}
+
 					($user?.role === 'user' && $user?.permissions?.features?.direct_tool_servers)
 				);
 			}
