@@ -326,3 +326,48 @@ export const deleteSkillById = async (token: string, id: string) => {
 
 	return res;
 };
+
+// CHOn (T12): company-wide sharing requests (user asks, admin approves or declines)
+const skillPublicRequest = async (token: string, path: string, method = 'POST', body?: object) => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/skills/${path}`, {
+		method,
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`
+		},
+		...(body ? { body: JSON.stringify(body) } : {})
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err.detail;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const requestPublicSkill = (token: string, id: string) =>
+	skillPublicRequest(token, `id/${encodeURIComponent(id)}/public/request`);
+
+export const cancelPublicSkillRequest = (token: string, id: string) =>
+	skillPublicRequest(token, `id/${encodeURIComponent(id)}/public/cancel`);
+
+export const getPublicSkillRequests = (token: string) =>
+	skillPublicRequest(token, 'public/requests', 'GET');
+
+export const approvePublicSkill = (token: string, id: string, note: string | null = null) =>
+	skillPublicRequest(token, `id/${encodeURIComponent(id)}/public/approve`, 'POST', { note });
+
+export const declinePublicSkill = (token: string, id: string, note: string | null = null) =>
+	skillPublicRequest(token, `id/${encodeURIComponent(id)}/public/decline`, 'POST', { note });

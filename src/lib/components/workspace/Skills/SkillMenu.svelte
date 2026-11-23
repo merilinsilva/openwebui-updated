@@ -7,6 +7,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import DocumentDuplicate from '$lib/components/icons/DocumentDuplicate.svelte';
 	import Download from '$lib/components/icons/Download.svelte';
+	import UserGroup from '$lib/components/icons/UserGroup.svelte';
 	import { user } from '$lib/stores';
 
 	const i18n = getContext('i18n');
@@ -14,6 +15,8 @@
 	export let editHandler: Function;
 	export let cloneHandler: Function;
 	export let exportHandler: Function;
+	// CHOn (T12): open the share dialog for this skill (null hides the item)
+	export let shareHandler: Function | null = null;
 	export let deleteHandler: Function;
 	export let onClose: Function;
 
@@ -74,6 +77,19 @@
 				<DocumentDuplicate className="size-3.5" />
 				<div class="flex items-center">{$i18n.t('Clone')}</div>
 			</button>
+
+			{#if shareHandler}
+				<button
+					class="select-none flex h-[1.6875rem] w-full cursor-pointer items-center gap-2 rounded-xl bg-transparent px-2 text-[0.8125rem] hover:text-gray-900 dark:hover:text-gray-100"
+					on:click={() => {
+						shareHandler?.();
+						closeMenu();
+					}}
+				>
+					<UserGroup className="size-3.5" />
+					<div class="flex items-center">{$i18n.t('Share')}</div>
+				</button>
+			{/if}
 
 			{#if $user?.role === 'admin' || $user?.permissions?.workspace?.skills_export}
 				<button

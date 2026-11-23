@@ -526,7 +526,6 @@
 									</Tooltip>
 
 									<ToolMenu
-										show={openToolMenuId === tool.id}
 										editHandler={() => {
 											goto(`/workspace/tools/edit?id=${encodeURIComponent(tool.id)}`);
 										}}
@@ -551,9 +550,6 @@
 											class="flex size-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 											type="button"
 											aria-label={$i18n.t('Tool Menu')}
-											on:click={() => {
-												openToolMenuId = openToolMenuId === tool.id ? null : tool.id;
-											}}
 										>
 											<EllipsisHorizontal className="size-4" />
 										</button>

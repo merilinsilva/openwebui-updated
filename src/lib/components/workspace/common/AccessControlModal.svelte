@@ -28,7 +28,12 @@
 	export let itemName = '';
 	export let subtitle = '';
 
-	export let onChange = () => {};
+	export let onChange: (accessGrants?: any) => void | Promise<void> = () => {};
+
+	// CHOn (T12): optional company-wide sharing request (skills)
+	export let publicRequest: { status?: string; note?: string | null } | null = null;
+	export let onRequestPublic: (() => Promise<void> | void) | null = null;
+	export let onCancelPublicRequest: (() => Promise<void> | void) | null = null;
 </script>
 
 <Modal size="sm" bind:show className="bg-white dark:bg-gray-900 rounded-2xl">
@@ -64,6 +69,9 @@
 				{sharePublic}
 				{shareOpen}
 				{shareUsers}
+				{publicRequest}
+				{onRequestPublic}
+				{onCancelPublicRequest}
 			/>
 		</div>
 

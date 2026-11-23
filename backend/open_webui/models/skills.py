@@ -34,6 +34,8 @@ class Skill(Base):
 
 class SkillMeta(BaseModel):
     tags: Optional[list[str]] = []
+    # CHOn (T12): keep extra keys such as `public_request` (company-wide sharing approval)
+    model_config = ConfigDict(extra='allow')
 
 
 class SkillModel(BaseModel):

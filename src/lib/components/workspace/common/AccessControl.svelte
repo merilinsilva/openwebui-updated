@@ -35,6 +35,25 @@
 	export let allowGroups = true;
 	export let defaultPermission: 'read' | 'write' = 'read';
 
+	// CHOn (T12): optional "ask the CHOn team to share with everyone" flow (skills only).
+	// publicRequest = { status: 'pending' | 'declined' | 'approved', note? } from the item's meta.
+	export let publicRequest: { status?: string; note?: string | null } | null = null;
+	export let onRequestPublic: (() => Promise<void> | void) | null = null;
+	export let onCancelPublicRequest: (() => Promise<void> | void) | null = null;
+	let requestBusy = false;
+	const runRequest = async (fn: (() => Promise<void> | void) | null) => {
+		if (!fn || requestBusy) return;
+		requestBusy = true;
+		try {
+			await fn();
+		} finally {
+			requestBusy = false;
+		}
+	};
+
+	// CHOn (T12): the user's own teams, offered as one-click "share with your team" chips.
+	let myTeams: any[] = [];
+
 	let groups: any[] = [];
 	const resolvingGroupIds = new Set<string>();
 	let userById: Record<string, any> = {};
@@ -459,7 +478,19 @@
 		groups = [...groups, ...res].filter(
 			(g, index, self) => index === self.findIndex((t) => t.id === g.id)
 		);
+
+		// CHOn (T12): for non-admins, GET /groups/ without `share` returns the groups they belong to.
+		// Only offer teams the user may also share with.
+		if ($sessionUser?.role !== 'admin') {
+			const mine = await getGroups(localStorage.token).catch(() => []);
+			const shareable = new Set(groups.map((g) => g.id));
+			myTeams = (mine ?? []).filter((g) => shareable.has(g.id));
+		}
 	});
+
+	$: suggestedTeams = myTeams.filter(
+		(g) => !readGroupIds.includes(g.id) && !writeGroupIds.includes(g.id)
+	);
 
 	// ---- CHOn share layout ---------------------------------------------------------------
 	// Three levels: Only me / Specific persons / Everyone at Weidmann
@@ -533,7 +564,12 @@
 		{
 			value: 'everyone' as Level,
 			label: $i18n.t('Everyone at {{org}}', { org: ORG_NAME }),
-			note: share && sharePublic ? '' : $i18n.t('needs approval'),
+			note:
+				share && sharePublic
+					? ''
+					: publicRequest?.status === 'pending' && visibility !== 'public'
+						? $i18n.t('approval pending')
+						: $i18n.t('needs approval'),
 			description: $i18n.t('Everyone at {{org}} can find and use it.', { org: ORG_NAME }),
 			// Keep it selectable if it already is public, so it can be read and changed back.
 			disabled: !(share && sharePublic) && visibility !== 'public',
@@ -678,9 +714,67 @@
 		</div>
 
 		{#if !(share && sharePublic) && level !== 'everyone'}
-			<p class="mt-1.5 text-xs text-gray-500">
-				{$i18n.t('Sharing with everyone at Weidmann needs approval. Ask the CHOn team.')}
-			</p>
+			{#if onRequestPublic && share}
+				<!-- CHOn (T12): request company-wide sharing from the CHOn team -->
+				<div
+					class="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs dark:border-gray-800"
+				>
+					<span class="min-w-0 text-gray-600 dark:text-gray-400">
+						{#if publicRequest?.status === 'pending'}
+							{$i18n.t('Waiting for the CHOn team to approve sharing with everyone at Weidmann.')}
+						{:else if publicRequest?.status === 'declined'}
+							{$i18n.t('The CHOn team declined sharing with everyone.')}
+							{#if publicRequest?.note}
+								<span class="block italic">“{publicRequest.note}”</span>
+							{/if}
+						{:else}
+							{$i18n.t('Sharing with everyone at Weidmann needs approval by the CHOn team.')}
+						{/if}
+					</span>
+					{#if publicRequest?.status === 'pending'}
+						<button
+							type="button"
+							class="shrink-0 rounded-lg border border-gray-300 px-2.5 py-1 font-medium hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:hover:bg-gray-850"
+							disabled={requestBusy}
+							on:click={() => runRequest(onCancelPublicRequest)}
+						>
+							{$i18n.t('Cancel request')}
+						</button>
+					{:else}
+						<button
+							type="button"
+							class="shrink-0 rounded-lg bg-black px-2.5 py-1 font-semibold text-white hover:bg-gray-800 disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+							disabled={requestBusy}
+							on:click={() => runRequest(onRequestPublic)}
+						>
+							{publicRequest?.status === 'declined'
+								? $i18n.t('Request again')
+								: $i18n.t('Request approval')}
+						</button>
+					{/if}
+				</div>
+			{:else}
+				<p class="mt-1.5 text-xs text-gray-500">
+					{$i18n.t('Sharing with everyone at Weidmann needs approval. Ask the CHOn team.')}
+				</p>
+			{/if}
+		{/if}
+
+		{#if share && allowGroups && suggestedTeams.length > 0 && level !== 'everyone' && level !== 'link'}
+			<!-- CHOn (T12): one-click "share with your team" -->
+			<div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+				<span class="text-gray-500">{$i18n.t('Your teams:')}</span>
+				{#each suggestedTeams as team (team.id)}
+					<button
+						type="button"
+						class="rounded-full border border-gray-300 px-2.5 py-0.5 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-850"
+						on:click={() =>
+							pickPrincipal({ kind: 'group', id: team.id, name: team.name, detail: '' })}
+					>
+						+ {team.name}
+					</button>
+				{/each}
+			</div>
 		{/if}
 
 		{#if level === 'everyone' && accessRoles.includes('write')}

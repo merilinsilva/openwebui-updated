@@ -634,7 +634,6 @@
 								</Tooltip>
 
 								<PromptMenu
-									show={openPromptMenuId === prompt.id}
 									editHandler={() => {
 										goto(`/workspace/prompts/${prompt.id}`);
 									}}
@@ -659,9 +658,6 @@
 										class="flex size-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 										type="button"
 										aria-label={$i18n.t('Prompt Menu')}
-										on:click={() => {
-											openPromptMenuId = openPromptMenuId === prompt.id ? null : prompt.id;
-										}}
 									>
 										<EllipsisHorizontal className="size-4" />
 									</button>

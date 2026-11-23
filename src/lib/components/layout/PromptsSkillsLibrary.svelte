@@ -12,10 +12,11 @@
 		showPromptLibrary,
 		chatInputInsert,
 		mobile,
-		showSidebar
+		showSidebar,
+		skills as _skillsStore
 	} from '$lib/stores';
 	import { createNewPrompt, getPromptItems } from '$lib/apis/prompts';
-	import { getSkills } from '$lib/apis/skills';
+	import { getSkills, createNewSkill } from '$lib/apis/skills';
 	import { getGroups } from '$lib/apis/groups';
 	import { slugify, parseFrontmatter, formatSkillName } from '$lib/utils';
 	import { getOwnership, ownershipToneClass, type Ownership } from '$lib/utils/ownership';
@@ -24,6 +25,7 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
+	import { parseSkillFile, type ParsedSkill } from '$lib/utils/skillFiles';
 	import Pencil from '$lib/components/icons/Pencil.svelte';
 	import PromptEditor from '$lib/components/workspace/Prompts/PromptEditor.svelte';
 
@@ -210,33 +212,82 @@
 		}
 	};
 
-	// Same Markdown import as Workspace > Skills: open the file in the skill editor for review.
-	const uploadSkillHandler = (event: Event) => {
+	// CHOn (T12): upload a SKILL.md or a .zip with skill folders (same as Workspace > Skills).
+	// One skill opens in the editor for review; several are created directly (private to the
+	// uploader) and can be shared from Workspace > Skills.
+	const uploadSkillHandler = async (event: Event) => {
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
+		input.value = '';
 		if (!file) return;
 
-		const reader = new FileReader();
-		reader.onload = async (e) => {
-			const mdContent = e.target?.result;
-			if (typeof mdContent !== 'string') return;
+		let parsed: ParsedSkill[] = [];
+		try {
+			parsed = await parseSkillFile(file);
+		} catch (e) {
+			toast.error(`${(e as Error)?.message ?? e}`);
+			return;
+		}
+		if (parsed.length === 0) {
+			toast.error($i18n.t('No SKILL.md found in this file.'));
+			return;
+		}
 
-			const fm: any = parseFrontmatter(mdContent);
-			const rawName = fm.name || file.name.replace(/\.md$/i, '');
+		const ignored = parsed.flatMap((p) => p.ignoredFiles);
+		if (ignored.length > 0) {
+			toast.info(
+				$i18n.t('Only SKILL.md is used. {{count}} other file(s) were not imported: {{files}}', {
+					count: ignored.length,
+					files: ignored.slice(0, 3).join(', ') + (ignored.length > 3 ? ', …' : '')
+				})
+			);
+		}
+
+		if (parsed.length === 1) {
+			const skill = parsed[0];
 			sessionStorage.skill = JSON.stringify({
-				name: formatSkillName(rawName),
-				id: slugify(rawName),
-				description: fm.description || '',
-				content: mdContent,
+				name: skill.name,
+				id: skill.id,
+				description: skill.description,
+				content: skill.content,
 				is_active: true,
 				access_grants: []
 			});
 			showPromptLibrary.set(false);
 			await tick();
 			goto('/workspace/skills/create');
-		};
-		reader.readAsText(file);
-		input.value = '';
+			return;
+		}
+
+		let created = 0;
+		for (const skill of parsed) {
+			const res = await createNewSkill(localStorage.token, {
+				id: skill.id,
+				name: skill.name,
+				description: skill.description,
+				content: skill.content,
+				meta: { tags: [] },
+				is_active: true,
+				access_grants: []
+			}).catch((error) => {
+				toast.error(`${skill.name}: ${error}`);
+				return null;
+			});
+			if (res) created++;
+		}
+		if (created > 0) {
+			toast.success(
+				$i18n.t('{{count}} skills uploaded. Use Share on a skill to give your team access.', {
+					count: created
+				})
+			);
+			await loadLibraryAfterUpload();
+		}
+	};
+
+	const loadLibraryAfterUpload = async () => {
+		await load();
+		_skillsStore.set(await getSkills(localStorage.token).catch(() => []));
 	};
 
 	const toneClass = ownershipToneClass;
@@ -252,7 +303,7 @@
 <input
 	bind:this={skillFileInput}
 	type="file"
-	accept=".md"
+	accept=".md,.zip"
 	hidden
 	on:change={uploadSkillHandler}
 />

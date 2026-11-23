@@ -7,7 +7,11 @@
 	import { user } from '$lib/stores';
 	import { slugify, parseFrontmatter, formatSkillName } from '$lib/utils';
 	import Spinner from '$lib/components/common/Spinner.svelte';
-	import { updateSkillAccessGrants } from '$lib/apis/skills';
+	import {
+		updateSkillAccessGrants,
+		requestPublicSkill,
+		cancelPublicSkillRequest
+	} from '$lib/apis/skills';
 	import { goto } from '$app/navigation';
 
 	export let onSubmit: Function;
@@ -27,6 +31,26 @@
 
 	let accessGrants = [];
 	let showAccessControlModal = false;
+
+	// CHOn (T12): company-wide sharing request (only for saved skills)
+	let publicRequest: { status?: string; note?: string | null } | null = null;
+	const requestPublic = async () => {
+		const res = await requestPublicSkill(localStorage.token, skill?.id ?? '').catch((error) => {
+			toast.error(`${error}`);
+			return null;
+		});
+		if (res) {
+			publicRequest = res?.meta?.public_request ?? { status: 'pending' };
+			toast.success($i18n.t('Request sent. The CHOn team will review it.'));
+		}
+	};
+	const cancelPublicRequest = async () => {
+		const res = await cancelPublicSkillRequest(localStorage.token, skill?.id ?? '').catch((error) => {
+			toast.error(`${error}`);
+			return null;
+		});
+		if (res) publicRequest = null;
+	};
 
 	const fieldClass =
 		'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-hidden placeholder:text-gray-400 focus:border-gray-500 disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:focus:border-gray-500 dark:disabled:bg-white/[0.03]';
@@ -85,6 +109,7 @@
 			description = skill.description || '';
 			content = skill.content || '';
 			accessGrants = skill?.access_grants === undefined ? [] : skill?.access_grants;
+			publicRequest = skill?.meta?.public_request ?? null;
 		}
 	});
 </script>
@@ -98,6 +123,9 @@
 	share={$user?.permissions?.sharing?.skills || $user?.role === 'admin'}
 	sharePublic={$user?.permissions?.sharing?.public_skills || $user?.role === 'admin'}
 	shareUsers={($user?.permissions?.access_grants?.allow_users ?? true) || $user?.role === 'admin'}
+	{publicRequest}
+	onRequestPublic={edit && skill?.id ? requestPublic : null}
+	onCancelPublicRequest={edit && skill?.id ? cancelPublicRequest : null}
 	onChange={async () => {
 		if (edit && skill?.id) {
 			try {
