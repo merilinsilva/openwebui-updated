@@ -14,7 +14,6 @@
 	import UserCircle from '$lib/components/icons/UserCircle.svelte';
 	import WrenchAlt from '$lib/components/icons/WrenchAlt.svelte';
 	import QuestionMarkCircle from '$lib/components/icons/QuestionMarkCircle.svelte';
-	import Bolt from '$lib/components/icons/Bolt.svelte';
 
 	export let id: string;
 	export let className = 'size-3.5';
@@ -83,8 +82,6 @@
 	<Computer {className} {strokeWidth} />
 {:else if id === 'how-to-use'}
 	<QuestionMarkCircle {className} {strokeWidth} />
-{:else if id === 'connectors'}
-	<Bolt {className} {strokeWidth} />
 {:else if id === 'audio'}
 	<SoundHigh {className} {strokeWidth} />
 {:else if id === 'images'}

@@ -30,7 +30,6 @@
 	import FolderPlaceholder from './Placeholder/FolderPlaceholder.svelte';
 	import FolderTitle from './Placeholder/FolderTitle.svelte';
 	import ModelValveSelect from './Placeholder/ModelValveSelect.svelte';
-	import ConnectorStatus from './Placeholder/ConnectorStatus.svelte';
 	import SkillsLibraryModal from './Placeholder/SkillsLibraryModal.svelte';
 	import WorkspaceModelPicker from './Placeholder/WorkspaceModelPicker.svelte';
 
@@ -444,12 +443,6 @@
 					/>
 				{/if}
 
-				{#if !$selectedFolder}
-					<!-- CHOn (T08): Outlook / SharePoint / Bee360 status (Admin Settings > Connectors) -->
-					<div class="mt-2.5 px-1">
-						<ConnectorStatus {oauthRedirectHandler} />
-					</div>
-				{/if}
 			</div>
 		</div>
 	</div>

@@ -1746,30 +1746,6 @@ HOW_TO_USE = {
     'content': os.getenv('HOW_TO_USE_CONTENT', ''),
 }
 
-# CHOn (T08): connector status badges on the start screen. Each connector maps to one or
-# more tool ids (e.g. MCP servers "server:mcp:<id>"); status comes from the user's tool list.
-# Edited in Admin Settings > Connectors.
-CONNECTORS = {
-    'enabled': os.getenv('CONNECTORS_ENABLED', 'True').lower() == 'true',
-    'request_access_url': os.getenv('CONNECTORS_REQUEST_ACCESS_URL', ''),
-    'items': [
-        {
-            'name': 'Outlook',
-            'description': 'Mail and calendar',
-            'tool_ids': ['server:mcp:sp_mcp'],
-        },
-        {
-            'name': 'SharePoint',
-            'description': 'Documents and sites',
-            'tool_ids': ['server:mcp:sp_mcp'],
-        },
-        {
-            'name': 'Bee360',
-            'description': 'Applications and demands',
-            'tool_ids': ['server:mcp:Bee360_MCP', 'server:mcp:bee360MCP'],
-        },
-    ],
-}
 
 
 RESPONSE_WATERMARK = os.getenv('RESPONSE_WATERMARK', '')
@@ -3136,7 +3112,6 @@ DEFAULT_CONFIG = {
     'ui.pending_user_overlay_title': PENDING_USER_OVERLAY_TITLE,
     'ui.pending_user_overlay_content': PENDING_USER_OVERLAY_CONTENT,
     'ui.how_to_use': HOW_TO_USE,
-    'ui.connectors': CONNECTORS,
     'ui.watermark': RESPONSE_WATERMARK,
     'user.permissions': USER_PERMISSIONS,
     'folders.enable': ENABLE_FOLDERS,

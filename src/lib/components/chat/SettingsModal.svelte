@@ -51,7 +51,6 @@
 	import AdminCodeExecution from '$lib/components/admin/Settings/CodeExecution.svelte';
 	import AdminInterface from '$lib/components/admin/Settings/Interface.svelte';
 	import AdminHowToUse from '$lib/components/admin/Settings/HowToUse.svelte';
-	import AdminConnectors from '$lib/components/admin/Settings/Connectors.svelte';
 	import AdminAudio from '$lib/components/admin/Settings/Audio.svelte';
 	import AdminImages from '$lib/components/admin/Settings/Images.svelte';
 	import AdminPipelines from '$lib/components/admin/Settings/Pipelines.svelte';
@@ -167,7 +166,6 @@
 		'admin:pipelines': 'Tools',
 		'admin:interface': 'Experience',
 		'admin:how-to-use': 'Experience',
-		'admin:connectors': 'Experience',
 		'admin:audio': 'Experience',
 		'admin:images': 'Experience',
 		'admin:db': 'Data'
@@ -746,11 +744,6 @@
 			keywords: ['how to use', 'guide', 'help', 'onboarding', 'manual', 'instructions', 'documentation']
 		},
 		{
-			id: 'admin:connectors',
-			title: 'Connectors',
-			keywords: ['connectors', 'outlook', 'sharepoint', 'bee360', 'mcp', 'sign in', 'status', 'topdesk']
-		},
-		{
 			id: 'admin:audio',
 			title: 'Audio',
 			keywords: ['audio', 'voice', 'speech', 'tts', 'stt', 'whisper', 'deepgram', 'azure']
@@ -1316,12 +1309,6 @@
 				<AdminCodeExecution saveHandler={adminConfigSaveHandler} />
 			{:else if selectedTab === 'admin:interface'}
 				<AdminInterface
-					on:save={() => {
-						toast.success($i18n.t('Settings saved successfully!'));
-					}}
-				/>
-			{:else if selectedTab === 'admin:connectors'}
-				<AdminConnectors
 					on:save={() => {
 						toast.success($i18n.t('Settings saved successfully!'));
 					}}
