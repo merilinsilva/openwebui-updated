@@ -45,7 +45,6 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import RateComment from './RateComment.svelte';
 	import WebSearchResults from './ResponseMessage/WebSearchResults.svelte';
-	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 
 	import DeleteConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 
@@ -59,6 +58,7 @@
 	import { fade } from 'svelte/transition';
 	import { flyAndScale } from '$lib/utils/transitions';
 	import RegenerateMenu from './ResponseMessage/RegenerateMenu.svelte';
+	import MoreActionsMenu from './ResponseMessage/MoreActionsMenu.svelte';
 	import StatusHistory from './ResponseMessage/StatusHistory.svelte';
 	import FullHeightIframe from '$lib/components/common/FullHeightIframe.svelte';
 	import OutputEditView from './OutputEditView.svelte';
@@ -249,6 +249,16 @@
 		speaking = false;
 		speakingIdx = undefined;
 		loadingSpeech = false;
+	};
+
+	// CHOn (T08): one toggle for the "More" menu item and the hidden auto-playback trigger
+	const toggleSpeak = () => {
+		if (loadingSpeech) return;
+		if (speaking) {
+			stopAudio();
+		} else {
+			speak();
+		}
 	};
 
 	// Resolve voice: model-specific > user settings > config default
@@ -968,29 +978,31 @@
 						{#if message.done || siblings.length > 1}
 							{#if siblings.length > 1}
 								<div class="flex self-center min-w-fit" dir="ltr">
-									<button
-										aria-label={$i18n.t('Previous message')}
-										class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
-										on:click={() => {
-											showPreviousMessage(message);
-										}}
-									>
-										<svg
-											aria-hidden="true"
-											xmlns="http://www.w3.org/2000/svg"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="2.5"
-											class="size-3.5"
+									<Tooltip content={$i18n.t('Previous version')} placement="bottom">
+										<button
+											aria-label={$i18n.t('Previous message')}
+											class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
+											on:click={() => {
+												showPreviousMessage(message);
+											}}
 										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M15.75 19.5 8.25 12l7.5-7.5"
-											/>
-										</svg>
-									</button>
+											<svg
+												aria-hidden="true"
+												xmlns="http://www.w3.org/2000/svg"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												stroke-width="2.5"
+												class="size-3.5"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="M15.75 19.5 8.25 12l7.5-7.5"
+												/>
+											</svg>
+										</button>
+									</Tooltip>
 
 									{#if messageIndexEdit}
 										<div
@@ -1037,29 +1049,31 @@
 										</div>
 									{/if}
 
-									<button
-										class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
-										on:click={() => {
-											showNextMessage(message);
-										}}
-										aria-label={$i18n.t('Next message')}
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											fill="none"
-											aria-hidden="true"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											stroke-width="2.5"
-											class="size-3.5"
+									<Tooltip content={$i18n.t('Next version')} placement="bottom">
+										<button
+											class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
+											on:click={() => {
+												showNextMessage(message);
+											}}
+											aria-label={$i18n.t('Next message')}
 										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="m8.25 4.5 7.5 7.5-7.5 7.5"
-											/>
-										</svg>
-									</button>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												fill="none"
+												aria-hidden="true"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												stroke-width="2.5"
+												class="size-3.5"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													d="m8.25 4.5 7.5 7.5-7.5 7.5"
+												/>
+											</svg>
+										</button>
+									</Tooltip>
 								</div>
 							{/if}
 
@@ -1150,91 +1164,16 @@
 								{/if}
 
 								{#if !readOnly && ($user?.role === 'admin' || ($user?.permissions?.chat?.tts ?? true))}
-									<Tooltip content={$i18n.t('Read Aloud')} placement="bottom">
-										<button
-											aria-label={$i18n.t('Read Aloud')}
-											id="speak-button-{message.id}"
-											class="{isLastMessage || ($settings?.highContrastMode ?? false)
-												? 'visible'
-												: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
-											on:click={() => {
-												if (!loadingSpeech) {
-													if (speaking) {
-														stopAudio();
-													} else {
-														speak();
-													}
-												}
-											}}
-										>
-											{#if loadingSpeech}
-												<svg
-													class=" w-4 h-4"
-													fill="currentColor"
-													viewBox="0 0 24 24"
-													aria-hidden="true"
-													xmlns="http://www.w3.org/2000/svg"
-												>
-													<style>
-														.spinner_S1WN {
-															animation: spinner_MGfb 0.8s linear infinite;
-															animation-delay: -0.8s;
-														}
-
-														.spinner_Km9P {
-															animation-delay: -0.65s;
-														}
-
-														.spinner_JApP {
-															animation-delay: -0.5s;
-														}
-
-														@keyframes spinner_MGfb {
-															93.75%,
-															100% {
-																opacity: 0.2;
-															}
-														}
-													</style>
-													<circle class="spinner_S1WN" cx="4" cy="12" r="3" />
-													<circle class="spinner_S1WN spinner_Km9P" cx="12" cy="12" r="3" />
-													<circle class="spinner_S1WN spinner_JApP" cx="20" cy="12" r="3" />
-												</svg>
-											{:else if speaking}
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													fill="none"
-													viewBox="0 0 24 24"
-													aria-hidden="true"
-													stroke-width="2.3"
-													stroke="currentColor"
-													class="w-4 h-4"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z"
-													/>
-												</svg>
-											{:else}
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													fill="none"
-													viewBox="0 0 24 24"
-													aria-hidden="true"
-													stroke-width="2.3"
-													stroke="currentColor"
-													class="w-4 h-4"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"
-													/>
-												</svg>
-											{/if}
-										</button>
-									</Tooltip>
+									<!-- CHOn (T08): Read aloud moved to the "More" menu; this hidden trigger keeps
+									     automatic playback working (Chat.svelte clicks speak-button-<id>). -->
+									<button
+										type="button"
+										class="hidden"
+										id="speak-button-{message.id}"
+										aria-hidden="true"
+										tabindex="-1"
+										on:click={toggleSpeak}
+									></button>
 								{/if}
 
 								{#if message.usage}
@@ -1253,7 +1192,8 @@
 										placement="bottom"
 									>
 										<button
-											aria-hidden="true"
+											type="button"
+											aria-label={$i18n.t('Usage details')}
 											class=" {isLastMessage || ($settings?.highContrastMode ?? false)
 												? 'visible'
 												: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition whitespace-pre-wrap"
@@ -1354,43 +1294,6 @@
 												>
 													<path
 														d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"
-													/>
-												</svg>
-											</button>
-										</Tooltip>
-									{/if}
-
-									{#if isLastMessage && ($user?.role === 'admin' || ($user?.permissions?.chat?.continue_response ?? true))}
-										<Tooltip content={$i18n.t('Continue Response')} placement="bottom">
-											<button
-												aria-label={$i18n.t('Continue Response')}
-												type="button"
-												id="continue-response-button"
-												class="{isLastMessage || ($settings?.highContrastMode ?? false)
-													? 'visible'
-													: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
-												on:click={() => {
-													continueResponse();
-												}}
-											>
-												<svg
-													aria-hidden="true"
-													xmlns="http://www.w3.org/2000/svg"
-													fill="none"
-													viewBox="0 0 24 24"
-													stroke-width="2.3"
-													stroke="currentColor"
-													class="w-4 h-4"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-													/>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112Z"
 													/>
 												</svg>
 											</button>
@@ -1509,109 +1412,29 @@
 										{/if}
 									{/if}
 
-									{#each model?.actions ?? [] as action}
-										<Tooltip content={action.name} placement="bottom">
-											<button
-												type="button"
-												aria-label={action.name}
-												class="{isLastMessage || ($settings?.highContrastMode ?? false)
-													? 'visible'
-													: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
-												on:click={() => {
-													actionMessage(action.id, message);
-												}}
-											>
-												{#if action?.icon}
-													<div class="size-4">
-														<img
-															src={action.icon}
-															class="w-4 h-4 {action.icon.includes('data:image/svg')
-																? 'dark:invert-[80%]'
-																: ''}"
-															style="fill: currentColor;"
-															alt={action.name}
-															draggable="false"
-														/>
-													</div>
-												{:else}
-													<Sparkles strokeWidth="2.1" className="size-4" />
-												{/if}
-											</button>
-										</Tooltip>
-									{/each}
-
-									{#if message.done && !readOnly && forkHandler && ($user?.role === 'admin' || ($user?.permissions?.chat?.import ?? true))}
-										<Tooltip content="Fork chat" placement="bottom">
-											<button
-												aria-label="Fork chat"
-												class="{isLastMessage || ($settings?.highContrastMode ?? false)
-													? 'visible'
-													: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
-												on:click={() => {
-													forkHandler?.(message.id);
-												}}
-											>
-												<svg
-													class="w-4 h-4"
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.8"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													aria-hidden="true"
-												>
-													<path d="M4 12H9" />
-													<path d="M9 12C12.5 12 12.5 7 16 7H20" />
-													<path d="M17 4L20 7L17 10" />
-													<path d="M9 12C12.5 12 12.5 17 16 17H20" />
-													<path d="M17 14L20 17L17 20" />
-												</svg>
-											</button>
-										</Tooltip>
-									{/if}
-
-									{#if $user?.role === 'admin' || ($user?.permissions?.chat?.delete_message ?? true)}
-										{#if siblings.length > 1}
-											<Tooltip content={$i18n.t('Delete')} placement="bottom">
-												<button
-													type="button"
-													aria-label={$i18n.t('Delete')}
-													id="delete-response-button"
-													class="{isLastMessage || ($settings?.highContrastMode ?? false)
-														? 'visible'
-														: 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition disabled:opacity-50 disabled:hover:bg-transparent"
-													disabled={!allowDelete}
-													on:click={(e) => {
-														if (!allowDelete) {
-															return;
-														}
-														if (e.shiftKey) {
-															deleteMessageHandler();
-														} else {
-															showDeleteConfirm = true;
-														}
-													}}
-												>
-													<svg
-														xmlns="http://www.w3.org/2000/svg"
-														fill="none"
-														viewBox="0 0 24 24"
-														stroke-width="2"
-														stroke="currentColor"
-														aria-hidden="true"
-														class="w-4 h-4"
-													>
-														<path
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
-														/>
-													</svg>
-												</button>
-											</Tooltip>
-										{/if}
-									{/if}
+									<!-- CHOn (T08): read aloud, continue, export/actions, fork and delete live in "More" -->
+									<MoreActionsMenu
+										buttonClass="{isLastMessage || ($settings?.highContrastMode ?? false) ? 'visible' : 'hover-reveal'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition"
+										showReadAloud={$user?.role === 'admin' || ($user?.permissions?.chat?.tts ?? true)}
+										{speaking}
+										{loadingSpeech}
+										onReadAloud={toggleSpeak}
+										showContinue={isLastMessage &&
+											($user?.role === 'admin' || ($user?.permissions?.chat?.continue_response ?? true))}
+										onContinue={() => continueResponse()}
+										actions={model?.actions ?? []}
+										onAction={(id) => actionMessage(id, message)}
+										showFork={message.done &&
+											!!forkHandler &&
+											($user?.role === 'admin' || ($user?.permissions?.chat?.import ?? true))}
+										onFork={() => forkHandler?.(message.id)}
+										showDelete={siblings.length > 1 &&
+											($user?.role === 'admin' || ($user?.permissions?.chat?.delete_message ?? true))}
+										deleteDisabled={!allowDelete}
+										onDelete={() => {
+											if (allowDelete) showDeleteConfirm = true;
+										}}
+									/>
 
 									{#if message.timestamp}
 										<Tooltip

@@ -438,28 +438,30 @@
 					{#if !compactPreview && !($settings?.chatBubble ?? true)}
 						{#if siblings.length > 1}
 							<div class="flex self-center" dir="ltr">
-								<button
-									aria-label={$i18n.t('Previous message')}
-									class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
-									on:click={() => {
-										showPreviousMessage(message);
-									}}
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										stroke-width="2.5"
-										class="size-3.5"
+								<Tooltip content={$i18n.t('Previous version')} placement="bottom">
+									<button
+										aria-label={$i18n.t('Previous message')}
+										class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
+										on:click={() => {
+											showPreviousMessage(message);
+										}}
 									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											d="M15.75 19.5 8.25 12l7.5-7.5"
-										/>
-									</svg>
-								</button>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2.5"
+											class="size-3.5"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M15.75 19.5 8.25 12l7.5-7.5"
+											/>
+										</svg>
+									</button>
+								</Tooltip>
 
 								{#if messageIndexEdit}
 									<div
@@ -506,28 +508,30 @@
 									</div>
 								{/if}
 
-								<button
-									aria-label={$i18n.t('Next message')}
-									class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
-									on:click={() => {
-										showNextMessage(message);
-									}}
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										stroke-width="2.5"
-										class="size-3.5"
+								<Tooltip content={$i18n.t('Next version')} placement="bottom">
+									<button
+										aria-label={$i18n.t('Next message')}
+										class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
+										on:click={() => {
+											showNextMessage(message);
+										}}
 									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											d="m8.25 4.5 7.5 7.5-7.5 7.5"
-										/>
-									</svg>
-								</button>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2.5"
+											class="size-3.5"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="m8.25 4.5 7.5 7.5-7.5 7.5"
+											/>
+										</svg>
+									</button>
+								</Tooltip>
 							</div>
 						{/if}
 					{/if}
@@ -627,28 +631,30 @@
 					{#if !compactPreview && ($settings?.chatBubble ?? true)}
 						{#if siblings.length > 1}
 							<div class="flex self-center" dir="ltr">
-								<button
-									aria-label={$i18n.t('Previous message')}
-									class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
-									on:click={() => {
-										showPreviousMessage(message);
-									}}
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										stroke-width="2.5"
-										class="size-3.5"
+								<Tooltip content={$i18n.t('Previous version')} placement="bottom">
+									<button
+										aria-label={$i18n.t('Previous message')}
+										class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
+										on:click={() => {
+											showPreviousMessage(message);
+										}}
 									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											d="M15.75 19.5 8.25 12l7.5-7.5"
-										/>
-									</svg>
-								</button>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2.5"
+											class="size-3.5"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="M15.75 19.5 8.25 12l7.5-7.5"
+											/>
+										</svg>
+									</button>
+								</Tooltip>
 
 								{#if messageIndexEdit}
 									<div
@@ -695,28 +701,30 @@
 									</div>
 								{/if}
 
-								<button
-									aria-label={$i18n.t('Next message')}
-									class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
-									on:click={() => {
-										showNextMessage(message);
-									}}
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										stroke-width="2.5"
-										class="size-3.5"
+								<Tooltip content={$i18n.t('Next version')} placement="bottom">
+									<button
+										aria-label={$i18n.t('Next message')}
+										class="self-center p-1 hover:bg-black/5 dark:hover:bg-white/5 dark:hover:text-white hover:text-black rounded-md transition"
+										on:click={() => {
+											showNextMessage(message);
+										}}
 									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											d="m8.25 4.5 7.5 7.5-7.5 7.5"
-										/>
-									</svg>
-								</button>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+											stroke-width="2.5"
+											class="size-3.5"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												d="m8.25 4.5 7.5 7.5-7.5 7.5"
+											/>
+										</svg>
+									</button>
+								</Tooltip>
 							</div>
 						{/if}
 					{/if}

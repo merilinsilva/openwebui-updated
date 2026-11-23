@@ -885,3 +885,48 @@ export const setHowToUse = async (token: string, data: HowToUse): Promise<HowToU
 
 	return res;
 };
+
+// CHOn (T08): connector status badges on the start screen
+export type ConnectorItem = { name: string; description: string; tool_ids: string[] };
+export type ConnectorsConfig = {
+	enabled: boolean;
+	request_access_url: string;
+	items: ConnectorItem[];
+};
+
+const connectorsRequest = async (
+	token: string,
+	method: 'GET' | 'POST',
+	data?: ConnectorsConfig
+): Promise<ConnectorsConfig> => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/configs/connectors`, {
+		method,
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`
+		},
+		...(data ? { body: JSON.stringify(data) } : {})
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.error(err);
+			error = err.detail;
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const getConnectors = (token: string) => connectorsRequest(token, 'GET');
+
+export const setConnectors = (token: string, data: ConnectorsConfig) =>
+	connectorsRequest(token, 'POST', data);
