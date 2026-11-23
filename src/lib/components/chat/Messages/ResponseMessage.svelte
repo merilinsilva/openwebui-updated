@@ -237,14 +237,21 @@
 
 	// "Report" on an error card: stored as feedback (type "error_report"), listed in
 	// Admin > Evaluations > Feedbacks. No rating, so the model leaderboard is unaffected.
-	const reportErrorHandler = async (report: { kind: string; title: string; details: string }) => {
+	const reportErrorHandler = async (report: {
+		kind: string;
+		title: string;
+		details: string;
+		comment?: string;
+	}) => {
 		const chat = chatId ? await getChatById(localStorage.token, chatId).catch(() => null) : null;
 		const res = await createNewFeedback(localStorage.token, {
 			type: 'error_report',
 			data: {
 				model_id: message?.selectedModelId ?? message.model,
 				reason: report.kind,
-				comment: [report.title, report.details].filter(Boolean).join('\n\n')
+				// What the user says happened; the technical error goes to error_details.
+				comment: (report.comment ?? '').trim(),
+				error_details: [report.title, report.details].filter(Boolean).join('\n\n')
 			},
 			meta: {
 				model_id: message.model,

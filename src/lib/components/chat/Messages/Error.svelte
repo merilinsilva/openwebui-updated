@@ -1,7 +1,7 @@
 <script lang="ts">
 	// CHOn (T17): specific error card with Retry and Report
 	// (WG-AI-PLA-00002, section 8 / PP-05; error red #B3261E, always icon + text label).
-	import { getContext } from 'svelte';
+	import { getContext, tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
 	import Info from '$lib/components/icons/Info.svelte';
@@ -21,17 +21,29 @@
 	export let canRetry = true;
 	export let onRetry: (() => void) | null = null;
 	/** Returns true when the report was saved. */
-	export let onReport: ((details: { kind: string; title: string; details: string }) => Promise<boolean>) | null =
-		null;
+	export let onReport:
+		| ((details: { kind: string; title: string; details: string; comment?: string }) => Promise<boolean>)
+		| null = null;
 
 	let showDetails = false;
 	let reporting = false;
 	let reported = false;
+	// Report asks "what happened?" first; the text goes to the feedback's Comment.
+	let showReportForm = false;
+	let reportComment = '';
+	let reportInput: HTMLTextAreaElement;
 
 	$: input = error ?? (content ? { content } : null);
 	$: explained = explainChatError((key, opts) => $i18n.t(key, opts), input, { stopped });
 	$: retryVisible = !!onRetry && canRetry && explained.canRetry;
 	$: reportVisible = !!onReport && !explained.neutral;
+
+	const openReportForm = async () => {
+		if (reported) return;
+		showReportForm = true;
+		await tick();
+		reportInput?.focus();
+	};
 
 	const report = async () => {
 		if (!onReport || reporting || reported) return;
@@ -39,11 +51,13 @@
 		const ok = await onReport({
 			kind: explained.kind,
 			title: explained.title,
-			details: explained.details
+			details: explained.details,
+			comment: reportComment.trim()
 		}).catch(() => false);
 		reporting = false;
 		if (ok) {
 			reported = true;
+			showReportForm = false;
 			toast.success($i18n.t('Thanks. The CHOn team has received your report.'));
 		}
 	};
@@ -93,8 +107,8 @@
 						<button
 							type="button"
 							class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-800 transition hover:bg-gray-100 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
-							disabled={reporting || reported}
-							on:click={report}
+							disabled={reporting || reported || showReportForm}
+							on:click={openReportForm}
 						>
 							{reported ? $i18n.t('Reported') : $i18n.t('Report')}
 						</button>
@@ -111,6 +125,47 @@
 						</button>
 					{/if}
 				</div>
+			{/if}
+
+			{#if showReportForm && !reported}
+				<!-- CHOn (T17): the user describes what happened (saved as the report's comment) -->
+				<form class="mt-2.5" on:submit|preventDefault={report}>
+					<label class="mb-1 block text-xs font-medium text-gray-800 dark:text-gray-200" for="report-{explained.kind}">
+						{$i18n.t('What happened? (optional)')}
+					</label>
+					<textarea
+						id="report-{explained.kind}"
+						bind:this={reportInput}
+						bind:value={reportComment}
+						rows="3"
+						maxlength="2000"
+						class="w-full resize-y rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-hidden focus:border-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+						placeholder={$i18n.t('E.g. what you asked for, which file or connector you used, what you expected.')}
+						on:keydown={(e) => {
+							if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) report();
+							if (e.key === 'Escape') showReportForm = false;
+						}}
+					></textarea>
+					<div class="mt-1.5 flex items-center gap-2">
+						<button
+							type="submit"
+							class="rounded-lg bg-black px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-gray-900 disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-gray-100"
+							disabled={reporting}
+						>
+							{$i18n.t('Send report')}
+						</button>
+						<button
+							type="button"
+							class="rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-850"
+							on:click={() => (showReportForm = false)}
+						>
+							{$i18n.t('Cancel')}
+						</button>
+						<span class="ml-auto text-[0.6875rem] text-gray-500">
+							{$i18n.t('The technical details are attached automatically.')}
+						</span>
+					</div>
+				</form>
 			{/if}
 
 			{#if showDetails && explained.details}

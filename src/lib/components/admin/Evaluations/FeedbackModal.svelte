@@ -117,9 +117,22 @@
 							<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Comment')}</div>
 
 							<div class="flex-1 text-xs">
-								<span>{selectedFeedback?.data?.comment || '-'}</span>
+								<span class="whitespace-pre-wrap break-words"
+									>{selectedFeedback?.data?.comment || '-'}</span
+								>
 							</div>
 						</div>
+
+						{#if (feedbackData ?? selectedFeedback)?.data?.error_details}
+							<!-- CHOn (T17): technical details of a reported error card -->
+							<div class="flex flex-col w-full mb-2">
+								<div class=" mb-1 text-xs text-gray-500">{$i18n.t('Error details')}</div>
+								<pre
+									class="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-2 font-mono text-[0.6875rem] dark:bg-gray-850">{(
+										feedbackData ?? selectedFeedback
+									)?.data?.error_details}</pre>
+							</div>
+						{/if}
 
 						{#if selectedFeedback?.data?.tags && selectedFeedback?.data?.tags.length}
 							<div class="mb-2 -mx-1">
