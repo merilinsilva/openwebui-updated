@@ -2522,11 +2522,11 @@
 											type="button"
 											id="input-prompts-skills-button"
 											class={labelledButtonClass}
-											aria-label={$i18n.t('Prompts & skills')}
+											aria-label={$i18n.t('Prompts & Skills')}
 											on:click={() => openCommandPicker('/')}
 										>
 											<span class="font-medium" aria-hidden="true">/</span>
-											<span class="hidden @md:inline">{$i18n.t('Prompts & skills')}</span>
+											<span class="hidden @md:inline">{$i18n.t('Prompts & Skills')}</span>
 										</button>
 									</Tooltip>
 

@@ -540,6 +540,11 @@
 			}
 			commitAccessGrants(grants);
 		} else if (next === 'everyone') {
+			if (canRequestPublic) {
+				// No right to share company-wide: picking it asks the CHOn team instead (pending approval).
+				if (publicRequest?.status !== 'pending') runRequest(onRequestPublic);
+				return;
+			}
 			setVisibility('public');
 		} else if (next === 'link') {
 			setVisibility('open');
@@ -547,6 +552,8 @@
 	};
 
 	$: canSpecific = share && (shareUsers || allowGroups);
+	// CHOn (T12): may ask for company-wide sharing (skills) without being allowed to set it directly.
+	$: canRequestPublic = !(share && sharePublic) && !!onRequestPublic && share && visibility !== 'public';
 	$: levelOptions = [
 		{
 			value: 'only_me' as Level,
@@ -572,7 +579,7 @@
 						: $i18n.t('needs approval'),
 			description: $i18n.t('Everyone at {{org}} can find and use it.', { org: ORG_NAME }),
 			// Keep it selectable if it already is public, so it can be read and changed back.
-			disabled: !(share && sharePublic) && visibility !== 'public',
+			disabled: !(share && sharePublic) && visibility !== 'public' && !canRequestPublic,
 			disabledHint: $i18n.t('Ask the CHOn team to share it with everyone.')
 		},
 		...((share && shareOpen) || visibility === 'open'
@@ -679,7 +686,7 @@
 					type="button"
 					role="radio"
 					aria-checked={level === option.value}
-					disabled={option.disabled}
+					disabled={option.disabled || (option.value === 'everyone' && requestBusy)}
 					title={option.disabled ? option.disabledHint : undefined}
 					class="flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed {level ===
 					option.value
@@ -728,7 +735,7 @@
 								<span class="block italic">“{publicRequest.note}”</span>
 							{/if}
 						{:else}
-							{$i18n.t('Sharing with everyone at Weidmann needs approval by the CHOn team.')}
+							{$i18n.t('Choose "Everyone at Weidmann" to ask the CHOn team for approval.')}
 						{/if}
 					</span>
 					{#if publicRequest?.status === 'pending'}
@@ -740,16 +747,14 @@
 						>
 							{$i18n.t('Cancel request')}
 						</button>
-					{:else}
+					{:else if publicRequest?.status === 'declined'}
 						<button
 							type="button"
 							class="shrink-0 rounded-lg bg-black px-2.5 py-1 font-semibold text-white hover:bg-gray-800 disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-gray-200"
 							disabled={requestBusy}
 							on:click={() => runRequest(onRequestPublic)}
 						>
-							{publicRequest?.status === 'declined'
-								? $i18n.t('Request again')
-								: $i18n.t('Request approval')}
+							{$i18n.t('Request again')}
 						</button>
 					{/if}
 				</div>

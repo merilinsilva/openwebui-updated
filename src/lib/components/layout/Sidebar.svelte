@@ -851,7 +851,7 @@
 		// them; creating new ones still needs the workspace permission (checked in the dialog).
 		{
 			id: 'prompts-skills',
-			label: 'Prompts & skills',
+			label: 'Prompts & Skills',
 			href: null,
 			prefixes: ['/workspace/prompts', '/workspace/skills']
 		},
