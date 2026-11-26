@@ -407,6 +407,7 @@
 					<MessageInput
 						bind:this={messageInput}
 						{history}
+						showModelSelector={!showModelPicker}
 						bind:selectedModels
 						bind:files
 						bind:prompt

@@ -31,13 +31,13 @@
 <div class="flex w-full flex-col items-center px-5">
 	<button
 		type="button"
-		class="flex flex-col items-center rounded-3xl border border-gray-200 dark:border-gray-800 px-6 pt-2.5 pb-3 hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+		class="group flex flex-col items-center"
 		aria-expanded={open}
 		aria-controls="workspace-model-picker"
 		on:click={() => (open = !open)}
 	>
 		<span
-			class="flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase text-gray-500 dark:text-gray-400"
+			class="flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase text-gray-500 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 transition"
 		>
 			{$i18n.t('Weidmann Models')}
 			<ChevronDown className="size-3.5 transition {open ? 'rotate-180' : ''}" strokeWidth="2" />
